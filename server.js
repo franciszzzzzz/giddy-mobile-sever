@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import path from "path";
 dotenv.config({
-  path: path.resolve("server/config/.env"),
+  path: path.resolve("config/.env"),
 });
 // const { connectMongoDB } = await import("./config/db.js");
 // const { transporter } = await import("./utils/sendEmail.js");
