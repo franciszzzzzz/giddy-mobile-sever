@@ -1,52 +1,36 @@
 import axios from "axios";
-import mongoose from "mongoose";
 
 const RETRY_DELAY = 5000; // 5 seconds
-
-export const connectMongoDB = async () => {
-  try {
-    await mongoose.connect(process.env.MONGO_URI); // ✅ clean modern syntax
-  } catch (err) {
-    console.error(`❌ MongoDB connection failed: ${err.message}`);
-    console.log(`⏳ Retrying in ${RETRY_DELAY / 1000} seconds...`);
-    setTimeout(connectMongoDb, RETRY_DELAY);
-  }
-};
-
-process.on("unhandledRejection", (err) => {
-  console.error("❌ Unhandled Promise Rejection:", err);
-});
+const AUTH_HEADER = "X-Backend-Auth-Token";
+const SECRET_TOKEN = process.env.WP_DEV_TOKEN;
+const SOURCE_URL = process.env.RENDER_SERVICE_URL;
 
 console.log("WC INSTANCE URL:", process.env.WC_BASE_URL);
 
 export const wc = axios.create({
   baseURL: process.env.WC_BASE_URL,
-
   timeout: 10000,
-
   auth: {
     username: process.env.WC_CONSUMER_KEY,
     password: process.env.WC_CONSUMER_SECRET,
   },
-
   headers: {
     Accept: "application/json",
-    "X-Dev-Server-Token": process.env.WP_DEV_TOKEN,
+    Origin: SOURCE_URL, // Tells the server where the request is from
+    [AUTH_HEADER]: SECRET_TOKEN, // The secret key
   },
 });
 
 export const wp = axios.create({
   baseURL: process.env.WP_BASE_URL,
-
   timeout: 10000,
-
   headers: {
     Accept: "application/json",
     "Content-Type": "application/json",
-    "X-Dev-Server-Token": process.env.WP_DEV_TOKEN,
+    Origin: SOURCE_URL,
+    [AUTH_HEADER]: SECRET_TOKEN,
   },
 });
-
 /**
  * Global error logger (VERY important for production debugging)
  */

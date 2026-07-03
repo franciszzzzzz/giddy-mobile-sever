@@ -26,8 +26,8 @@ const app = express();
 // Allowed origins
 const allowedOrigins =
   process.env.NODE_ENV === "production"
-    ? ["https://frostltd.com.ng"]
-    : ["http://localhost:5173"];
+    ? ["https://giddyandclaire.com/"]
+    : [" http://localhost:8081"];
 
 // CORS setup
 app.use(
