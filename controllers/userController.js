@@ -190,7 +190,7 @@ export const loginAdmin = handleAsyncError(async (req, res, next) => {
 
 // Logout User
 export const logoutUser = handleAsyncError(async (req, res, next) => {
-  const { refreshToken } = req.body;
+  const refreshToken = req.header("Authorization")?.replace("Bearer ", "");
 
   if (!refreshToken) {
     return next(new HandleError("Refresh token required.", 401));
