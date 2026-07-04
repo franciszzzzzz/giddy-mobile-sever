@@ -89,9 +89,15 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
       wpUser.token,
     );
 
+    await redisClient.setEx(
+      `user:${wpUser.user_id}`,
+      CACHE_TTL.REFRESH_TOKEN,
+      refreshToken,
+    );
+
     return res.status(200).json({
       success: true,
-
+      message: "Login successful",
       user: {
         id: wpUser.user_id,
         email: wpUser.user_email,
@@ -313,7 +319,6 @@ export const getUserDetails = handleAsyncError(async (req, res, next) => {
   res.status(200).json({
     success: true,
     user: req.user,
-    token,
   });
 });
 
