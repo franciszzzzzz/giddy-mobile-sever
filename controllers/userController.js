@@ -225,48 +225,28 @@ export const requestPasswordReset = handleAsyncError(async (req, res, next) => {
   const { email } = req.body;
 
   if (!email) {
-    return next(new HandleError("Email required", 400));
+    return next(new HandleError("Please provide an email address", 400));
   }
 
   try {
-    // Generate token
-
-    const resetToken = crypto.randomBytes(32).toString("hex");
-
-    // You can later replace this with WP lookup
-
-    await redisClient.setEx(
-      `password-reset:${resetToken}`,
-
-      300, // 5 minutes
-      //3600,
-
+    await wp.post("wp-json/mobile/v1/request-password-reset", {
       email,
-    );
-
-    const resetUrl = `${process.env.WP_BASE_URL}/reset-password/${resetToken}`;
-
-    await sendEmail({
-      email,
-
-      subject: "Password Reset Request",
-
-      message: `
-Reset password here:
-
-${resetUrl}
-
-Expires in 5 minutes.
-`,
     });
 
-    return res.json({
+    return res.status(200).json({
       success: true,
-
-      message: "Reset email sent",
+      message:
+        "If an account exists for this email, a password reset link has been sent.",
     });
   } catch (error) {
-    return next(new HandleError("Password reset failed", 500));
+    console.error(
+      "❌ Password Reset Error:",
+      error.response?.data || error.message,
+    );
+
+    return next(
+      new HandleError("Unable to process password reset request", 500),
+    );
   }
 });
 
@@ -521,3 +501,12 @@ export const deleteUser = handleAsyncError(async (req, res, next) => {
     return next(new HandleError("Failed to delete user", 500));
   }
 });
+
+// GET /api/v1/health
+export const healthCheck = (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Server is awake",
+    timestamp: Date.now(),
+  });
+};

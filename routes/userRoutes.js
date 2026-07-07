@@ -16,10 +16,11 @@ import {
   updateUserProfile,
   updateUserRole,
   refreshAccessToken,
+  healthCheck,
 } from "../controllers/userController.js";
 
 const router = express.Router();
-
+router.get("/health", healthCheck);
 router.route("/register").post(upload.single("avatar"), registerUser);
 router.route("/login").post(loginUser);
 router.route("/refresh-token").post(refreshAccessToken);
