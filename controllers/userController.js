@@ -61,7 +61,7 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
     // Create your own app tokens
     const accessToken = createAccessToken({
       id: wpUser.user_id,
-      role: "customer",
+      role: wpUser.role,
       email: wpUser.user_email,
       name: wpUser.user_display_name,
     });
@@ -78,7 +78,7 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
       CACHE_TTL.REFRESH_TOKEN,
       JSON.stringify({
         id: wpUser.user_id,
-        role: "customer",
+        role: wpUser.role,
         email: wpUser.user_email,
         name: wpUser.user_display_name,
       }),
@@ -102,7 +102,7 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
         id: wpUser.user_id,
         email: wpUser.user_email,
         name: wpUser.user_display_name,
-        role: "customer",
+        role: wpUser.role,
       },
 
       wpToken: wpUser.token, // optional, useful for testing
@@ -238,7 +238,8 @@ export const requestPasswordReset = handleAsyncError(async (req, res, next) => {
     await redisClient.setEx(
       `password-reset:${resetToken}`,
 
-      300,
+      300, // 5 minutes
+      //3600,
 
       email,
     );
@@ -272,9 +273,8 @@ Expires in 5 minutes.
 //Reset Password
 export const resetPassword = handleAsyncError(async (req, res, next) => {
   const { token } = req.params;
-
   const email = await redisClient.get(`password-reset:${token}`);
-
+  console.log("EMAIL FROM REDIS:", email);
   if (!email) {
     return next(new HandleError("Invalid token", 400));
   }
@@ -284,11 +284,20 @@ export const resetPassword = handleAsyncError(async (req, res, next) => {
   if (password !== confirmPassword) {
     return next(new HandleError("Passwords do not match", 400));
   }
+  // const customer = await wc.get("/customers", {
+  //   params: {
+  //     email,
+  //   },
+  // });
+  try {
+    const response = await wc.get("/customers");
 
-  // Need WP/WC update here
-
-  const customer = await wc.get(`/customers?email=${email}`);
-
+    console.log(response.data);
+  } catch (err) {
+    console.log(err.response?.status);
+    console.log(err.response?.data);
+  }
+  //console.log(customer.data);
   const user = customer.data[0];
 
   if (!user) {
@@ -307,7 +316,6 @@ export const resetPassword = handleAsyncError(async (req, res, next) => {
 
   return res.json({
     success: true,
-
     message: "Password updated",
   });
 });
@@ -339,13 +347,13 @@ export const updatePassword = handleAsyncError(async (req, res, next) => {
       new HandleError("WordPress session expired. Please log in again.", 401),
     );
   }
-  console.log("REQ.USER:", req.user);
+
   try {
-    const response = await wc.put(
-      `/customers/${1289}`,
-      // `/customers/${req.user.id}`,
+    const response = await wp.post(
+      "/wp-json/mobile/v1/change-password",
       {
-        password: newPassword,
+        current_password: oldPassword,
+        new_password: newPassword,
       },
       {
         headers: {
@@ -353,11 +361,10 @@ export const updatePassword = handleAsyncError(async (req, res, next) => {
         },
       },
     );
-    console.log(`/customers/${req.user.id}`);
+
     return res.status(200).json({
       success: true,
-      message: "Password updated successfully.",
-      customer: response.data,
+      message: response.data?.message || "Password updated successfully.",
     });
   } catch (error) {
     console.error(
@@ -373,6 +380,7 @@ export const updatePassword = handleAsyncError(async (req, res, next) => {
     );
   }
 });
+
 // Update User Profile
 export const updateUserProfile = handleAsyncError(async (req, res, next) => {
   const { name, email } = req.body;
