@@ -86,6 +86,105 @@ export const checkCacheManually = async (req, res) => {
   }
 };
 
+// Get Categories For Products
+export const getCategories = handleAsyncError(async (req, res, next) => {
+  const response = await wc.get("/products/categories");
+
+  res.status(200).json({
+    success: true,
+    categories: response.data,
+  });
+});
+
+// Get Product Brands
+export const getBrands = handleAsyncError(async (req, res, next) => {
+  const response = await wc.get("/products/tags", {
+    params: {
+      per_page: 20,
+    },
+  });
+
+  res.status(200).json({
+    success: true,
+    brands: response.data,
+  });
+});
+
+// Get Products By Group or Price
+export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
+  const { group } = req.params;
+  const { maxPrice } = req.query;
+
+  // Fetch all categories
+  const categoryResponse = await wc.get("/products/categories", {
+    params: {
+      per_page: 20,
+    },
+  });
+
+  const categories = categoryResponse.data;
+
+  // Find parent group
+  const parent = categories.find(
+    (category) =>
+      category.name.toLowerCase() === group.toLowerCase() ||
+      category.slug.toLowerCase() === group.toLowerCase(),
+  );
+
+  if (!parent) {
+    return next(new HandleError(`${group} category not found`, 404));
+  }
+
+  // Find child categories
+  const childCategories = categories.filter(
+    (category) => category.parent === parent.id,
+  );
+
+  // Parent + children IDs
+  const categoryIds = [
+    parent.id,
+    ...childCategories.map((category) => category.id),
+  ];
+
+  // Fetch products
+  const responses = await Promise.all(
+    categoryIds.map((id) =>
+      wc.get("/products", {
+        params: {
+          category: id,
+          per_page: 20,
+        },
+      }),
+    ),
+  );
+
+  // Remove duplicates
+  const productMap = new Map();
+
+  responses.forEach((response) => {
+    response.data.forEach((product) => {
+      productMap.set(product.id, product);
+    });
+  });
+
+  let products = [...productMap.values()];
+
+  // Apply price filter only if provided
+  if (maxPrice) {
+    products = products.filter(
+      (product) => Number(product.price) <= Number(maxPrice),
+    );
+  }
+
+  res.status(200).json({
+    success: true,
+    group: parent.name,
+    maxPrice: maxPrice ? Number(maxPrice) : null,
+    count: products.length,
+    products,
+  });
+});
+
 // 💎 LUXURY BRANDS - Based on high price threshold
 export const getLuxuryBrands = handleAsyncError(async (req, res, next) => {
   const page = Number(req.query.page) || 1;
@@ -101,13 +200,13 @@ export const getLuxuryBrands = handleAsyncError(async (req, res, next) => {
     const response = await wc.get("/products", {
       params: {
         page: currentPage,
-        per_page: 100, // WooCommerce max
+        per_page: 20, // WooCommerce max
       },
     });
 
     allProducts.push(...response.data);
 
-    if (response.data.length < 100) {
+    if (response.data.length < 20) {
       hasMore = false;
     } else {
       currentPage++;
@@ -198,7 +297,7 @@ export const getNewArrivals = handleAsyncError(async (req, res, next) => {
     const response = await wc.get("/products", {
       params: {
         page: currentPage,
-        per_page: 100,
+        per_page: 20,
       },
     });
 
@@ -257,13 +356,13 @@ export const getProductOfTheWeek = handleAsyncError(async (req, res, next) => {
           after: sevenDaysAgo.toISOString(),
           status: "completed",
           page,
-          per_page: 100,
+          per_page: 20,
         },
       });
 
       orders.push(...response.data);
 
-      if (response.data.length < 100) {
+      if (response.data.length < 20) {
         hasMore = false;
       } else {
         page++;
@@ -332,105 +431,6 @@ export const getProductOfTheWeek = handleAsyncError(async (req, res, next) => {
   }
 });
 
-// Get Categories For Products
-export const getCategories = handleAsyncError(async (req, res, next) => {
-  const response = await wc.get("/products/categories");
-
-  res.status(200).json({
-    success: true,
-    categories: response.data,
-  });
-});
-
-// Get Product Brands
-export const getBrands = handleAsyncError(async (req, res, next) => {
-  const response = await wc.get("/products/tags", {
-    params: {
-      per_page: 100,
-    },
-  });
-
-  res.status(200).json({
-    success: true,
-    brands: response.data,
-  });
-});
-
-// Get Products By Group or Price
-export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
-  const { group } = req.params;
-  const { maxPrice } = req.query;
-
-  // Fetch all categories
-  const categoryResponse = await wc.get("/products/categories", {
-    params: {
-      per_page: 100,
-    },
-  });
-
-  const categories = categoryResponse.data;
-
-  // Find parent group
-  const parent = categories.find(
-    (category) =>
-      category.name.toLowerCase() === group.toLowerCase() ||
-      category.slug.toLowerCase() === group.toLowerCase(),
-  );
-
-  if (!parent) {
-    return next(new HandleError(`${group} category not found`, 404));
-  }
-
-  // Find child categories
-  const childCategories = categories.filter(
-    (category) => category.parent === parent.id,
-  );
-
-  // Parent + children IDs
-  const categoryIds = [
-    parent.id,
-    ...childCategories.map((category) => category.id),
-  ];
-
-  // Fetch products
-  const responses = await Promise.all(
-    categoryIds.map((id) =>
-      wc.get("/products", {
-        params: {
-          category: id,
-          per_page: 100,
-        },
-      }),
-    ),
-  );
-
-  // Remove duplicates
-  const productMap = new Map();
-
-  responses.forEach((response) => {
-    response.data.forEach((product) => {
-      productMap.set(product.id, product);
-    });
-  });
-
-  let products = [...productMap.values()];
-
-  // Apply price filter only if provided
-  if (maxPrice) {
-    products = products.filter(
-      (product) => Number(product.price) <= Number(maxPrice),
-    );
-  }
-
-  res.status(200).json({
-    success: true,
-    group: parent.name,
-    maxPrice: maxPrice ? Number(maxPrice) : null,
-    count: products.length,
-    products,
-  });
-});
-
 // Get Products By Category Name or Slug
 export const getProductsByCategory = handleAsyncError(
   async (req, res, next) => {
@@ -439,7 +439,7 @@ export const getProductsByCategory = handleAsyncError(
     // Fetch all categories
     const categoryResponse = await wc.get("/products/categories", {
       params: {
-        per_page: 100,
+        per_page: 20,
       },
     });
 
@@ -460,7 +460,7 @@ export const getProductsByCategory = handleAsyncError(
     const productResponse = await wc.get("/products", {
       params: {
         category: selectedCategory.id,
-        per_page: 100,
+        per_page: 20,
       },
     });
 
@@ -476,83 +476,6 @@ export const getProductsByCategory = handleAsyncError(
     });
   },
 );
-
-//1️⃣ creating products
-export const createProducts = handleAsyncError(async (req, res, next) => {
-  console.log("🟢 [PRODUCT CREATE] Starting product creation...");
-
-  const { name, price, description, category, stock } = req.body;
-
-  // ✅ Better validation
-  if (!name || !price || !description || !category || !stock) {
-    console.log("❌ [PRODUCT CREATE] Missing required fields:", {
-      name: !!name,
-      price: !!price,
-      description: !!description,
-      category: !!category,
-      stock: !!stock,
-    });
-    return next(new HandleError("All fields are required", 400));
-  }
-
-  let image = [];
-
-  // 1️⃣ If multiple files exist
-  if (req.files && req.files.length > 0) {
-    console.log("🟢 [PRODUCT CREATE] Uploading", req.files.length, "images...");
-
-    try {
-      const uploadPromises = req.files.map((file) =>
-        uploadToCloudinary(file.buffer, "products"),
-      );
-
-      const results = await Promise.all(uploadPromises);
-      console.log("🟢 [PRODUCT CREATE] Cloudinary upload successful");
-
-      image = results.map((result) => ({
-        public_id: result.public_id,
-        url: result.secure_url,
-      }));
-    } catch (uploadError) {
-      console.error(
-        "❌ [PRODUCT CREATE] Cloudinary upload failed:",
-        uploadError,
-      );
-      return next(new HandleError("Image upload failed", 500));
-    }
-  }
-
-  // 2️⃣ Create product with image info
-  console.log("🟢 [PRODUCT CREATE] Creating product in database...");
-
-  try {
-    const product = await productModel.create({
-      name,
-      price,
-      description,
-      category,
-      stock,
-      image,
-      user: req.user.id,
-    });
-
-    console.log(
-      "✅ [PRODUCT CREATE] Product created successfully:",
-      product._id,
-    );
-
-    // 🗑️ CLEAR CACHE AFTER CREATION
-    await clearProductsCache();
-
-    res.status(201).json({
-      success: true,
-      product,
-    });
-  } catch (dbError) {
-    console.error("❌ [PRODUCT CREATE] Database error:", dbError);
-    return next(new HandleError("Database error creating product", 500));
-  }
-});
 
 //2️⃣ get all products
 export const getAllProduct = handleAsyncError(async (req, res, next) => {
@@ -601,66 +524,6 @@ export const getAllProduct = handleAsyncError(async (req, res, next) => {
     );
 
     return next(new HandleError("Unable to fetch products", 500));
-  }
-});
-
-//3️⃣update product
-export const updateProduct = handleAsyncError(async (req, res, next) => {
-  console.log("🟢 [PRODUCT UPDATE] Starting product update...");
-
-  try {
-    // ... your existing update logic ...
-
-    // 4️⃣ Save updated product
-    console.log("🟢 [PRODUCT UPDATE] Saving to database...");
-    const updatedProduct = await product.save();
-    console.log(
-      "✅ [PRODUCT UPDATE] Product updated successfully:",
-      updatedProduct._id,
-    );
-
-    // 🗑️ CLEAR CACHE AFTER UPDATE
-    await clearProductsCache();
-
-    res.status(200).json({
-      success: true,
-      product: updatedProduct,
-    });
-  } catch (error) {
-    console.error("❌ [PRODUCT UPDATE] Unexpected error:", error);
-    return next(
-      new HandleError("Internal server error: " + error.message, 500),
-    );
-  }
-});
-
-//4️⃣ delete product
-export const deleteProduct = handleAsyncError(async (req, res, next) => {
-  try {
-    // 1️⃣ Find the product first
-    const product = await productModel.findById(req.params.id);
-
-    if (!product) {
-      return next(new HandleError("Product not found", 404));
-    }
-
-    // ... your existing delete logic ...
-
-    // 3️⃣ Delete the product document from the database
-    await productModel.findByIdAndDelete(req.params.id);
-    console.log("✅ Product deleted from database");
-
-    // 🗑️ CLEAR CACHE AFTER DELETION
-    await clearProductsCache();
-
-    // 4️⃣ Send response
-    res.status(200).json({
-      success: true,
-      message: "Product and associated images deleted successfully",
-    });
-  } catch (error) {
-    console.error("❌ Error in deleteProduct:", error);
-    return next(new HandleError("Failed to delete product", 500));
   }
 });
 
@@ -762,6 +625,142 @@ export const deleteReviewsForProduct = handleAsyncError(
     });
   },
 );
+
+//1️⃣ creating products
+export const createProducts = handleAsyncError(async (req, res, next) => {
+  console.log("🟢 [PRODUCT CREATE] Starting product creation...");
+
+  const { name, price, description, category, stock } = req.body;
+
+  // ✅ Better validation
+  if (!name || !price || !description || !category || !stock) {
+    console.log("❌ [PRODUCT CREATE] Missing required fields:", {
+      name: !!name,
+      price: !!price,
+      description: !!description,
+      category: !!category,
+      stock: !!stock,
+    });
+    return next(new HandleError("All fields are required", 400));
+  }
+
+  let image = [];
+
+  // 1️⃣ If multiple files exist
+  if (req.files && req.files.length > 0) {
+    console.log("🟢 [PRODUCT CREATE] Uploading", req.files.length, "images...");
+
+    try {
+      const uploadPromises = req.files.map((file) =>
+        uploadToCloudinary(file.buffer, "products"),
+      );
+
+      const results = await Promise.all(uploadPromises);
+      console.log("🟢 [PRODUCT CREATE] Cloudinary upload successful");
+
+      image = results.map((result) => ({
+        public_id: result.public_id,
+        url: result.secure_url,
+      }));
+    } catch (uploadError) {
+      console.error(
+        "❌ [PRODUCT CREATE] Cloudinary upload failed:",
+        uploadError,
+      );
+      return next(new HandleError("Image upload failed", 500));
+    }
+  }
+
+  // 2️⃣ Create product with image info
+  console.log("🟢 [PRODUCT CREATE] Creating product in database...");
+
+  try {
+    const product = await productModel.create({
+      name,
+      price,
+      description,
+      category,
+      stock,
+      image,
+      user: req.user.id,
+    });
+
+    console.log(
+      "✅ [PRODUCT CREATE] Product created successfully:",
+      product._id,
+    );
+
+    // 🗑️ CLEAR CACHE AFTER CREATION
+    await clearProductsCache();
+
+    res.status(201).json({
+      success: true,
+      product,
+    });
+  } catch (dbError) {
+    console.error("❌ [PRODUCT CREATE] Database error:", dbError);
+    return next(new HandleError("Database error creating product", 500));
+  }
+});
+//3️⃣update product
+export const updateProduct = handleAsyncError(async (req, res, next) => {
+  console.log("🟢 [PRODUCT UPDATE] Starting product update...");
+
+  try {
+    // ... your existing update logic ...
+
+    // 4️⃣ Save updated product
+    console.log("🟢 [PRODUCT UPDATE] Saving to database...");
+    const updatedProduct = await product.save();
+    console.log(
+      "✅ [PRODUCT UPDATE] Product updated successfully:",
+      updatedProduct._id,
+    );
+
+    // 🗑️ CLEAR CACHE AFTER UPDATE
+    await clearProductsCache();
+
+    res.status(200).json({
+      success: true,
+      product: updatedProduct,
+    });
+  } catch (error) {
+    console.error("❌ [PRODUCT UPDATE] Unexpected error:", error);
+    return next(
+      new HandleError("Internal server error: " + error.message, 500),
+    );
+  }
+});
+
+//4️⃣ delete product
+export const deleteProduct = handleAsyncError(async (req, res, next) => {
+  try {
+    // 1️⃣ Find the product first
+    const product = await productModel.findById(req.params.id);
+
+    if (!product) {
+      return next(new HandleError("Product not found", 404));
+    }
+
+    // ... your existing delete logic ...
+
+    // 3️⃣ Delete the product document from the database
+    await productModel.findByIdAndDelete(req.params.id);
+    console.log("✅ Product deleted from database");
+
+    // 🗑️ CLEAR CACHE AFTER DELETION
+    await clearProductsCache();
+
+    // 4️⃣ Send response
+    res.status(200).json({
+      success: true,
+      message: "Product and associated images deleted successfully",
+    });
+  } catch (error) {
+    console.error("❌ Error in deleteProduct:", error);
+    return next(new HandleError("Failed to delete product", 500));
+  }
+});
 
 // 9️⃣ Admin Getting All Products
 export const getAdminProduct = handleAsyncError(async (req, res, next) => {
