@@ -96,56 +96,6 @@ export const getCategories = handleAsyncError(async (req, res, next) => {
   });
 });
 
-//2️⃣ get all products
-// export const getAllProduct = handleAsyncError(async (req, res, next) => {
-//   const resultPerPage = Number(req.query.limit) || 20;
-//   const page = Number(req.query.page) || 1;
-
-//   try {
-//     const response = await wc.get("/products", {
-//       params: {
-//         page,
-//         per_page: resultPerPage,
-//         search: req.query.keyword,
-//         category: req.query.category,
-//         tag: req.query.tag,
-//         featured: req.query.featured,
-//         on_sale: req.query.onSale,
-//         stock_status: req.query.stockStatus,
-//         min_price: req.query.minPrice,
-//         max_price: req.query.maxPrice,
-//         orderby: req.query.orderby,
-//         order: req.query.order,
-//       },
-//     });
-
-//     const products = response.data;
-
-//     if (!products || products.length === 0) {
-//       return next(new HandleError("No products found", 404));
-//     }
-
-//     res.status(200).json({
-//       success: true,
-
-//       products,
-
-//       resultPerPage,
-
-//       currentPage: page,
-
-//       count: products.length,
-//     });
-//   } catch (error) {
-//     console.error(
-//       "PRODUCT FETCH ERROR:",
-//       error.response?.data || error.message,
-//     );
-
-//     return next(new HandleError("Unable to fetch products", 500));
-//   }
-// });
-
 //new endpoint i am trying to add to get all products with filters and pagination
 export const getAllProduct = handleAsyncError(async (req, res, next) => {
   const page = Number(req.query.page) || 1;
@@ -199,7 +149,7 @@ export const getAllProduct = handleAsyncError(async (req, res, next) => {
     page,
     per_page: limit,
   };
-
+  console.log("🔍 [PRODUCT FETCH] Params:", params);
   if (search) params.search = search.trim();
 
   if (category) params.category = category;
