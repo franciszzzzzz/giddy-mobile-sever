@@ -96,6 +96,171 @@ export const getCategories = handleAsyncError(async (req, res, next) => {
   });
 });
 
+//2️⃣ get all products
+// export const getAllProduct = handleAsyncError(async (req, res, next) => {
+//   const resultPerPage = Number(req.query.limit) || 20;
+//   const page = Number(req.query.page) || 1;
+
+//   try {
+//     const response = await wc.get("/products", {
+//       params: {
+//         page,
+//         per_page: resultPerPage,
+//         search: req.query.keyword,
+//         category: req.query.category,
+//         tag: req.query.tag,
+//         featured: req.query.featured,
+//         on_sale: req.query.onSale,
+//         stock_status: req.query.stockStatus,
+//         min_price: req.query.minPrice,
+//         max_price: req.query.maxPrice,
+//         orderby: req.query.orderby,
+//         order: req.query.order,
+//       },
+//     });
+
+//     const products = response.data;
+
+//     if (!products || products.length === 0) {
+//       return next(new HandleError("No products found", 404));
+//     }
+
+//     res.status(200).json({
+//       success: true,
+
+//       products,
+
+//       resultPerPage,
+
+//       currentPage: page,
+
+//       count: products.length,
+//     });
+//   } catch (error) {
+//     console.error(
+//       "PRODUCT FETCH ERROR:",
+//       error.response?.data || error.message,
+//     );
+
+//     return next(new HandleError("Unable to fetch products", 500));
+//   }
+// });
+
+//new endpoint i am trying to add to get all products with filters and pagination
+export const getAllProduct = handleAsyncError(async (req, res, next) => {
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 20;
+
+  const {
+    search,
+    category,
+    tag,
+    featured,
+    onSale,
+    stockStatus,
+    minPrice,
+    maxPrice,
+    sort,
+  } = req.query;
+
+  // Translate frontend sort values into WooCommerce values
+  let orderby;
+  let order = "desc";
+
+  switch (sort) {
+    case "bestsellers":
+      orderby = "popularity";
+      break;
+
+    case "newest":
+      orderby = "date";
+      break;
+
+    case "rating":
+      orderby = "rating";
+      break;
+
+    case "price-low-high":
+      orderby = "price";
+      order = "asc";
+      break;
+
+    case "price-high-low":
+      orderby = "price";
+      order = "desc";
+      break;
+
+    default:
+      break;
+  }
+
+  // Build WooCommerce params dynamically
+  const params = {
+    page,
+    per_page: limit,
+  };
+
+  if (search) params.search = search.trim();
+
+  if (category) params.category = category;
+
+  if (tag) params.tag = tag;
+
+  if (featured === "true") params.featured = true;
+
+  if (onSale === "true") params.on_sale = true;
+
+  if (stockStatus) params.stock_status = stockStatus;
+
+  if (minPrice) params.min_price = minPrice;
+
+  if (maxPrice) params.max_price = maxPrice;
+
+  if (orderby) params.orderby = orderby;
+
+  if (order) params.order = order;
+
+  try {
+    const response = await wc.get("/products", {
+      params,
+    });
+
+    const products = response.data;
+
+    return res.status(200).json({
+      success: true,
+
+      pagination: {
+        page,
+        limit,
+        returned: products.length,
+      },
+
+      filters: {
+        search: search || null,
+        category: category || null,
+        tag: tag || null,
+        featured: featured || false,
+        onSale: onSale || false,
+        stockStatus: stockStatus || null,
+        minPrice: minPrice || null,
+        maxPrice: maxPrice || null,
+        sort: sort || null,
+      },
+
+      count: products.length,
+
+      products,
+    });
+  } catch (error) {
+    console.error(
+      "PRODUCT FETCH ERROR:",
+      error.response?.data || error.message,
+    );
+
+    return next(new HandleError("Unable to fetch products", 500));
+  }
+});
 // Get Product Brands
 export const getBrands = handleAsyncError(async (req, res, next) => {
   const response = await wc.get("/products/tags", {
@@ -252,7 +417,7 @@ export const getLuxuryBrands = handleAsyncError(async (req, res, next) => {
   });
 });
 
-// 🔥 POPULAR PRODUCTS - High ratings and reviews (could be considered luxury)
+// 🔥 POPULAR PRODUCTS - High ratings and reviews (could be considered luxury) not yest worked on
 export const getPopularProducts = handleAsyncError(async (req, res, next) => {
   const page = Number(req.query.page) || 1;
   const limit = Number(req.query.limit) || 12;
@@ -499,56 +664,6 @@ export const getProductsByCategory = handleAsyncError(
   },
 );
 
-//2️⃣ get all products
-export const getAllProduct = handleAsyncError(async (req, res, next) => {
-  const resultPerPage = Number(req.query.limit) || 20;
-  const page = Number(req.query.page) || 1;
-
-  try {
-    const response = await wc.get("/products", {
-      params: {
-        page,
-        per_page: resultPerPage,
-        search: req.query.keyword,
-        category: req.query.category,
-        tag: req.query.tag,
-        featured: req.query.featured,
-        on_sale: req.query.onSale,
-        stock_status: req.query.stockStatus,
-        min_price: req.query.minPrice,
-        max_price: req.query.maxPrice,
-        orderby: req.query.orderby,
-        order: req.query.order,
-      },
-    });
-
-    const products = response.data;
-
-    if (!products || products.length === 0) {
-      return next(new HandleError("No products found", 404));
-    }
-
-    res.status(200).json({
-      success: true,
-
-      products,
-
-      resultPerPage,
-
-      currentPage: page,
-
-      count: products.length,
-    });
-  } catch (error) {
-    console.error(
-      "PRODUCT FETCH ERROR:",
-      error.response?.data || error.message,
-    );
-
-    return next(new HandleError("Unable to fetch products", 500));
-  }
-});
-
 //5️⃣ get single product
 export const getSingleProduct = handleAsyncError(async (req, res, next) => {
   const { id } = req.params;
@@ -604,17 +719,50 @@ export const getSimilarProducts = handleAsyncError(async (req, res, next) => {
       per_page: 8,
     },
   });
-
-  // Remove current product
-  const similarProducts = similarResponse.data.filter(
-    (item) => item.id !== product.id,
-  );
+  const similarProducts = similarResponse.data
+    .filter((item) => item.id !== product.id)
+    .slice(0, 5);
 
   res.status(200).json({
     success: true,
     count: similarProducts.length,
     products: similarProducts,
   });
+});
+
+export const searchProducts = handleAsyncError(async (req, res, next) => {
+  const { q } = req.query;
+
+  const resultPerPage = Number(req.query.limit) || 20;
+  const page = Number(req.query.page) || 1;
+
+  if (!q || !q.trim()) {
+    return next(new HandleError("Search query is required", 400));
+  }
+  const search = q.trim();
+  try {
+    const response = await wc.get("/products", {
+      params: {
+        search,
+        page,
+        per_page: resultPerPage,
+      },
+    });
+
+    const products = response.data;
+    res.status(200).json({
+      success: true,
+      query: q,
+      count: products.length,
+      currentPage: page,
+      resultPerPage,
+      products,
+    });
+  } catch (error) {
+    console.error("SEARCH ERROR:", error.response?.data || error.message);
+
+    return next(new HandleError("Unable to search products", 500));
+  }
 });
 
 // 6️⃣ Creating And Updating Reviews

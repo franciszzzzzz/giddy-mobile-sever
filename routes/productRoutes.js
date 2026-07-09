@@ -17,6 +17,7 @@ import {
   getSimilarProducts,
   getSingleProduct,
   gettingReviewsForProduct,
+  searchProducts,
   updateProduct,
 } from "../controllers/productController.js";
 import { cache, cacheDebugger } from "../middleware/cache.js";
@@ -31,6 +32,7 @@ router.use(cacheDebugger);
 router.route("/products").get(cache(CACHE_TTL.PRODUCTS), getAllProduct);
 router.route("/categories").get(cache(CACHE_TTL.CATEGORIES), getCategories);
 router.route("/brands").get(cache(CACHE_TTL.BRANDS), getBrands);
+router.route("/search").get(cache(CACHE_TTL.PRODUCTS), searchProducts);
 router
   .route("/products/group/:group")
   .get(cache(CACHE_TTL.CATEGORIES), getProductsByGroup);
