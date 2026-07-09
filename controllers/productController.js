@@ -228,18 +228,18 @@ export const getBrands = handleAsyncError(async (req, res, next) => {
 // Get Products By Group or Price
 export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
   const { group } = req.params;
-  const { maxPrice } = req.query;
+  const { maxPrice, sort } = req.query;
 
   // Fetch all categories
   const categoryResponse = await wc.get("/products/categories", {
     params: {
-      per_page: 100, // Increased to get all categories
+      per_page: 100,
     },
   });
 
   const categories = categoryResponse.data;
 
-  // Find parent group
+  // Find parent category
   const parent = categories.find(
     (category) =>
       category.name.toLowerCase() === group.toLowerCase() ||
@@ -247,44 +247,38 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
   );
 
   if (!parent) {
-    // 🔍 Return helpful error with available categories
     const availableCategories = categories
-      .filter((c) => c.parent === 0 || c.parent === null) // Only top-level categories
+      .filter((c) => c.parent === 0)
       .map((c) => ({
         id: c.id,
         name: c.name,
         slug: c.slug,
-        // Show the exact strings you should use
-        useName: c.name,
-        useSlug: c.slug,
       }));
 
     return next(
       new HandleError(
-        `"${group}" category not found. Available top-level categories you can use: ${availableCategories.map((c) => `"${c.name}" (slug: "${c.slug}")`).join(", ")}`,
+        `"${group}" category not found. Available categories: ${availableCategories
+          .map((c) => `"${c.slug}"`)
+          .join(", ")}`,
         404,
       ),
     );
   }
 
-  // Find child categories
+  // Find all child categories
   const childCategories = categories.filter(
     (category) => category.parent === parent.id,
   );
 
-  // Parent + children IDs
-  const categoryIds = [
-    parent.id,
-    ...childCategories.map((category) => category.id),
-  ];
+  const categoryIds = [parent.id, ...childCategories.map((c) => c.id)];
 
-  // Fetch products
+  // Fetch products for every category
   const responses = await Promise.all(
     categoryIds.map((id) =>
       wc.get("/products", {
         params: {
           category: id,
-          per_page: 20,
+          per_page: 100,
         },
       }),
     ),
@@ -301,23 +295,63 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
 
   let products = [...productMap.values()];
 
-  // Apply price filter only if provided
+  // Price filter
   if (maxPrice) {
     products = products.filter(
       (product) => Number(product.price) <= Number(maxPrice),
     );
   }
 
-  // 🔍 Also return the exact category used
+  // Sorting
+  switch (sort) {
+    case "bestsellers":
+      products.sort(
+        (a, b) => Number(b.total_sales || 0) - Number(a.total_sales || 0),
+      );
+      break;
+
+    case "newest":
+      products.sort(
+        (a, b) =>
+          new Date(b.date_created).getTime() -
+          new Date(a.date_created).getTime(),
+      );
+      break;
+
+    case "price-low-high":
+      products.sort((a, b) => Number(a.price || 0) - Number(b.price || 0));
+      break;
+
+    case "price-high-low":
+      products.sort((a, b) => Number(b.price || 0) - Number(a.price || 0));
+      break;
+
+    case "rating":
+      products.sort(
+        (a, b) => Number(b.average_rating || 0) - Number(a.average_rating || 0),
+      );
+      break;
+
+    default:
+      break;
+  }
+
   res.status(200).json({
     success: true,
-    group: parent.name,
-    groupSlug: parent.slug,
-    groupId: parent.id,
-    message: `Use "/products/group/${parent.slug}" or "/products/group/${parent.name}"`,
-    maxPrice: maxPrice ? Number(maxPrice) : null,
+
+    group: {
+      id: parent.id,
+      name: parent.name,
+      slug: parent.slug,
+    },
+
+    filters: {
+      sort: sort || null,
+      maxPrice: maxPrice || null,
+    },
+
     count: products.length,
-    categoriesUsed: categoryIds,
+
     products,
   });
 });
