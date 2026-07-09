@@ -361,7 +361,7 @@ export const updatePassword = handleAsyncError(async (req, res, next) => {
   }
 });
 
-// Update User Profile
+// Update User Profile not done
 export const updateUserProfile = handleAsyncError(async (req, res, next) => {
   const { name, email } = req.body;
   const updateUserDetails = { name, email };

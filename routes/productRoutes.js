@@ -14,6 +14,7 @@ import {
   getProductOfTheWeek,
   getProductsByCategory,
   getProductsByGroup,
+  getSimilarProducts,
   getSingleProduct,
   gettingReviewsForProduct,
   updateProduct,
@@ -39,6 +40,19 @@ router
 router
   .route("/products/product-of-the-week")
   .get(cache(CACHE_TTL.PRODUCT_OF_THE_WEEK), getProductOfTheWeek);
+
+router.route("/product/:id").get(cache(CACHE_TTL.PRODUCT), getSingleProduct);
+router
+  .route("/products/:id/similar")
+  .get(cache(CACHE_TTL.PRODUCT), getSimilarProducts);
+
+router
+  .route("/products/:id/reviews")
+  .get(cache(CACHE_TTL.REVIEWS), gettingReviewsForProduct);
+router.route("/review").put(verifyUserAuth, createReviewForProduct);
+router.route("/review/:id").delete(verifyUserAuth, deleteReviewsForProduct);
+
+// Admin routes
 router
   .route("/admin/products")
   .get(verifyUserAuth, roleBasedAccess("admin"), getAdminProduct);
@@ -61,14 +75,6 @@ router
     updateProduct,
   )
   .delete(verifyUserAuth, roleBasedAccess("admin"), deleteProduct);
-
-router.route("/product/:id").get(cache(CACHE_TTL.PRODUCT), getSingleProduct);
-
-router
-  .route("/products/:id/reviews")
-  .get(cache(CACHE_TTL.REVIEWS), gettingReviewsForProduct);
-router.route("/review").put(verifyUserAuth, createReviewForProduct);
-router.route("/review/:id").delete(verifyUserAuth, deleteReviewsForProduct);
 
 router
   .route("/admin/reviews")

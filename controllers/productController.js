@@ -100,7 +100,7 @@ export const getCategories = handleAsyncError(async (req, res, next) => {
 export const getBrands = handleAsyncError(async (req, res, next) => {
   const response = await wc.get("/products/tags", {
     params: {
-      per_page: 20,
+      per_page: 100,
     },
   });
 
@@ -118,7 +118,7 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
   // Fetch all categories
   const categoryResponse = await wc.get("/products/categories", {
     params: {
-      per_page: 20,
+      per_page: 100, // Increased to get all categories
     },
   });
 
@@ -132,7 +132,24 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
   );
 
   if (!parent) {
-    return next(new HandleError(`${group} category not found`, 404));
+    // 🔍 Return helpful error with available categories
+    const availableCategories = categories
+      .filter((c) => c.parent === 0 || c.parent === null) // Only top-level categories
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        slug: c.slug,
+        // Show the exact strings you should use
+        useName: c.name,
+        useSlug: c.slug,
+      }));
+
+    return next(
+      new HandleError(
+        `"${group}" category not found. Available top-level categories you can use: ${availableCategories.map((c) => `"${c.name}" (slug: "${c.slug}")`).join(", ")}`,
+        404,
+      ),
+    );
   }
 
   // Find child categories
@@ -176,11 +193,16 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
     );
   }
 
+  // 🔍 Also return the exact category used
   res.status(200).json({
     success: true,
     group: parent.name,
+    groupSlug: parent.slug,
+    groupId: parent.id,
+    message: `Use "/products/group/${parent.slug}" or "/products/group/${parent.name}"`,
     maxPrice: maxPrice ? Number(maxPrice) : null,
     count: products.length,
+    categoriesUsed: categoryIds,
     products,
   });
 });
@@ -547,6 +569,51 @@ export const getSingleProduct = handleAsyncError(async (req, res, next) => {
 
       reviews: reviewsResponse.data,
     },
+  });
+});
+
+// GET /products/:id/similar
+export const getSimilarProducts = handleAsyncError(async (req, res, next) => {
+  const { id } = req.params;
+
+  // Get current product
+  const productResponse = await wc.get(`/products/${id}`);
+
+  const product = productResponse.data;
+
+  if (!product) {
+    return next(new HandleError("Product not found", 404));
+  }
+
+  // Product must belong to at least one category
+  if (!product.categories?.length) {
+    return res.status(200).json({
+      success: true,
+      count: 0,
+      products: [],
+    });
+  }
+
+  // Use the first category
+  const categoryId = product.categories[0].id;
+
+  // Get products in same category
+  const similarResponse = await wc.get("/products", {
+    params: {
+      category: categoryId,
+      per_page: 8,
+    },
+  });
+
+  // Remove current product
+  const similarProducts = similarResponse.data.filter(
+    (item) => item.id !== product.id,
+  );
+
+  res.status(200).json({
+    success: true,
+    count: similarProducts.length,
+    products: similarProducts,
   });
 });
 
