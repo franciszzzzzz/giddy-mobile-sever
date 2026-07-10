@@ -239,40 +239,92 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
 
   const categories = categoryResponse.data;
 
-  // Find parent category
-  const parent = categories.find(
-    (category) =>
-      category.name.toLowerCase() === group.toLowerCase() ||
-      category.slug.toLowerCase() === group.toLowerCase(),
-  );
+  let categoryIds = [];
+  let groupInfo = null;
 
-  if (!parent) {
-    const availableCategories = categories
-      .filter((c) => c.parent === 0)
-      .map((c) => ({
-        id: c.id,
-        name: c.name,
-        slug: c.slug,
-      }));
-
-    return next(
-      new HandleError(
-        `"${group}" category not found. Available categories: ${availableCategories
-          .map((c) => `"${c.slug}"`)
-          .join(", ")}`,
-        404,
-      ),
+  /**
+   * Special case for Kids
+   * Combine Boys + Girls
+   */
+  if (group.toLowerCase() === "kids") {
+    const boys = categories.find(
+      (c) => c.slug.toLowerCase() === "boys" || c.name.toLowerCase() === "boys",
     );
+
+    const girls = categories.find(
+      (c) =>
+        c.slug.toLowerCase() === "girls" || c.name.toLowerCase() === "girls",
+    );
+
+    if (!boys && !girls) {
+      return next(new HandleError("Kids categories not found.", 404));
+    }
+
+    const collectChildren = (parent) => {
+      if (!parent) return [];
+
+      const children = categories.filter(
+        (category) => category.parent === parent.id,
+      );
+
+      return [parent.id, ...children.map((c) => c.id)];
+    };
+
+    categoryIds = [...collectChildren(boys), ...collectChildren(girls)];
+
+    // Remove duplicate category ids
+    categoryIds = [...new Set(categoryIds)];
+
+    groupInfo = {
+      id: 0,
+      name: "Kids",
+      slug: "kids",
+    };
+  } else {
+    /**
+     * Existing logic
+     */
+    const parent = categories.find(
+      (category) =>
+        category.name.toLowerCase() === group.toLowerCase() ||
+        category.slug.toLowerCase() === group.toLowerCase(),
+    );
+
+    if (!parent) {
+      const availableCategories = categories
+        .filter((c) => c.parent === 0)
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+        }));
+
+      return next(
+        new HandleError(
+          `"${group}" category not found. Available categories: ${availableCategories
+            .map((c) => `"${c.slug}"`)
+            .join(", ")}`,
+          404,
+        ),
+      );
+    }
+
+    const childCategories = categories.filter(
+      (category) => category.parent === parent.id,
+    );
+
+    categoryIds = [parent.id, ...childCategories.map((c) => c.id)];
+
+    groupInfo = {
+      id: parent.id,
+      name: parent.name,
+      slug: parent.slug,
+    };
   }
 
-  // Find all child categories
-  const childCategories = categories.filter(
-    (category) => category.parent === parent.id,
-  );
-
-  const categoryIds = [parent.id, ...childCategories.map((c) => c.id)];
-
-  // Fetch products for every category
+  /**
+   * Fetch products
+   */
   const responses = await Promise.all(
     categoryIds.map((id) =>
       wc.get("/products", {
@@ -284,7 +336,9 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
     ),
   );
 
-  // Remove duplicates
+  /**
+   * Remove duplicate products
+   */
   const productMap = new Map();
 
   responses.forEach((response) => {
@@ -295,14 +349,18 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
 
   let products = [...productMap.values()];
 
-  // Price filter
+  /**
+   * Price filter
+   */
   if (maxPrice) {
     products = products.filter(
       (product) => Number(product.price) <= Number(maxPrice),
     );
   }
 
-  // Sorting
+  /**
+   * Sorting
+   */
   switch (sort) {
     case "bestsellers":
       products.sort(
@@ -339,11 +397,7 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
   res.status(200).json({
     success: true,
 
-    group: {
-      id: parent.id,
-      name: parent.name,
-      slug: parent.slug,
-    },
+    group: groupInfo,
 
     filters: {
       sort: sort || null,
