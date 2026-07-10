@@ -233,7 +233,7 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
   // Fetch all categories
   const categoryResponse = await wc.get("/products/categories", {
     params: {
-      per_page: 50,
+      per_page: 100,
     },
   });
 
@@ -330,7 +330,7 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
       wc.get("/products", {
         params: {
           category: id,
-          per_page: 10,
+          per_page: Number(limit),
         },
       }),
     ),
