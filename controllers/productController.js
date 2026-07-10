@@ -330,7 +330,7 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
       wc.get("/products", {
         params: {
           category: id,
-          per_page: 8,
+          per_page: 10,
         },
       }),
     ),
