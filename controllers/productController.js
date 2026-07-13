@@ -175,6 +175,15 @@ export const getAllProduct = handleAsyncError(async (req, res, next) => {
       params,
     });
 
+    console.table(
+      response.data
+        .filter((p) => p.name.toLowerCase().includes("storm"))
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          categories: p.categories.map((c) => c.name).join(", "),
+        })),
+    );
     const products = response.data;
 
     return res.status(200).json({
@@ -509,67 +518,6 @@ export const getPopularProducts = handleAsyncError(async (req, res, next) => {
     console.error("❌ [POPULAR PRODUCTS] Error:", error);
     return next(new HandleError("Failed to fetch popular products", 500));
   }
-});
-
-// 🆕 NEW ARRIVALS - Recently created OR recently restocked products
-export const getNewArrivals = handleAsyncError(async (req, res, next) => {
-  const page = Number(req.query.page) || 1;
-  const limit = Number(req.query.limit) || 20;
-
-  const DAY = 24 * 60 * 60 * 1000;
-
-  const now = new Date();
-
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * DAY);
-  const sevenDaysAgo = new Date(now.getTime() - 7 * DAY);
-
-  let currentPage = 1;
-  let allProducts = [];
-  let hasMore = true;
-
-  while (hasMore) {
-    const response = await wc.get("/products", {
-      params: {
-        page: currentPage,
-        per_page: 20,
-      },
-    });
-
-    allProducts.push(...response.data);
-
-    if (response.data.length < 100) {
-      hasMore = false;
-    } else {
-      currentPage++;
-    }
-  }
-
-  const newArrivals = allProducts.filter((product) => {
-    const created = new Date(product.date_created);
-    const modified = new Date(product.date_modified);
-
-    return (
-      created >= thirtyDaysAgo ||
-      (modified >= sevenDaysAgo && product.stock_status === "instock")
-    );
-  });
-
-  newArrivals.sort((a, b) => {
-    return (
-      new Date(b.date_created).getTime() - new Date(a.date_created).getTime()
-    );
-  });
-
-  const start = (page - 1) * limit;
-  const paginatedProducts = newArrivals.slice(start, start + limit);
-
-  res.status(200).json({
-    success: true,
-    count: newArrivals.length,
-    currentPage: page,
-    totalPages: Math.ceil(newArrivals.length / limit),
-    products: paginatedProducts,
-  });
 });
 
 export const getProductOfTheWeek = handleAsyncError(async (req, res, next) => {

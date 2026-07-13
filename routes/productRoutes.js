@@ -9,7 +9,6 @@ import {
   getBrands,
   getCategories,
   getLuxuryBrands,
-  getNewArrivals,
   getPopularProducts,
   getProductOfTheWeek,
   getProductsByCategory,
@@ -84,7 +83,6 @@ router
   .get(verifyUserAuth, roleBasedAccess("admin"), gettingReviewsForProduct)
   .delete(verifyUserAuth, roleBasedAccess("admin"), deleteReviewsForProduct);
 
-router.route("/products/new-arrivals").get(getNewArrivals);
 router.route("/products/luxury-brands").get(getLuxuryBrands);
 router.route("/products/popular-products").get(getPopularProducts);
 export default router;
