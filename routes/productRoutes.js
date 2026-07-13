@@ -36,6 +36,7 @@ router.route("/search").get(cache(CACHE_TTL.PRODUCTS), searchProducts);
 router
   .route("/products/group/:group")
   .get(cache(CACHE_TTL.CATEGORIES), getProductsByGroup);
+router.route("/products/groupp/:group").get(getProductsByGroup);
 router
   .route("/products/category/:category")
   .get(cache(CACHE_TTL.PRODUCTS), getProductsByCategory);

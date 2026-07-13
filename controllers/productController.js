@@ -284,9 +284,18 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
     /**
      * Existing logic
      */
+
+    // console.table(
+    //   categories.map((c) => ({
+    //     id: c.id,
+    //     name: c.name,
+    //     slug: c.slug,
+    //     parent: c.parent,
+    //   })),
+    // );
     const parent = categories.find(
       (category) =>
-        category.name.toLowerCase() === group.toLowerCase() ||
+        category.parent === 0 &&
         category.slug.toLowerCase() === group.toLowerCase(),
     );
 

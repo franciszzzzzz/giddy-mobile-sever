@@ -104,8 +104,6 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
         name: wpUser.user_display_name,
         role: wpUser.role,
       },
-
-      wpToken: wpUser.token, // optional, useful for testing
       accessToken,
       refreshToken,
     });
