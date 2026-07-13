@@ -3,12 +3,11 @@ import path from "path";
 dotenv.config({
   path: path.resolve("config/.env"),
 });
-// const { connectMongoDB } = await import("./config/db.js");
+const { connectMongoDb } = await import("./config/db.js");
 // const { transporter } = await import("./utils/sendEmail.js");
 const { default: app } = await import("./app.js");
 
-// connectMongoDB();
-
+await connectMongoDb();
 // transporter.verify((error) => {
 //   if (error) {
 //     console.error("SMTP CONNECTION FAILED:", error);

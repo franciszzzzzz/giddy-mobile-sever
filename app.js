@@ -9,17 +9,13 @@ import { fileURLToPath } from "url";
 import product from "./routes/productRoutes.js";
 import user from "./routes/userRoutes.js";
 import order from "./routes/orderRoute.js";
+import cartRoutes from "./routes/cartRoutes.js";
 import paystackRoutes from "./routes/paystackRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 
 // Middleware
 import limiter from "./middleware/rateLimiter.js";
 import errorHandleMiddleware from "./middleware/error.js";
-
-// Load .env in development only
-if (process.env.NODE_ENV !== "production") {
-  dotenv.config({ path: path.resolve("server/config/.env") });
-}
 
 const app = express();
 
@@ -70,6 +66,7 @@ app.use(limiter);
 app.use("/api/v1", product);
 app.use("/api/v1", user);
 app.use("/api/v1", order);
+app.use("/api/v1", cartRoutes);
 app.use("/api/v1", paystackRoutes);
 app.use("/api/v1", messageRoutes);
 

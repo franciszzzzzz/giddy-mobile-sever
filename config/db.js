@@ -1,4 +1,5 @@
 import axios from "axios";
+import mongoose from "mongoose";
 
 const RETRY_DELAY = 5000; // 5 seconds
 const AUTH_HEADER = "X-Backend-Auth-Token";
@@ -6,6 +7,24 @@ const SECRET_TOKEN = process.env.WP_DEV_TOKEN;
 const SOURCE_URL = process.env.RENDER_SERVICE_URL;
 
 console.log("WC INSTANCE URL:", process.env.WC_BASE_URL);
+
+export const connectMongoDb = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log("MongoDb connected successfully");
+    console.log("Ready:", mongoose.connection.readyState);
+    console.log("DB:", mongoose.connection.name);
+    console.log("Host:", mongoose.connection.host);
+  } catch (err) {
+    console.error(`❌ MongoDB connection failed: ${err.message}`);
+    console.log(`⏳ Retrying in ${RETRY_DELAY / 1000} seconds...`);
+    setTimeout(connectMongoDb, RETRY_DELAY);
+  }
+};
+
+process.on("unhandledRejection", (err) => {
+  console.error("❌ Unhandled Promise Rejection:", err);
+});
 
 export const wc = axios.create({
   baseURL: process.env.WC_BASE_URL,
