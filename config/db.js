@@ -13,8 +13,6 @@ export const connectMongoDb = async () => {
     await mongoose.connect(process.env.MONGO_URI);
     console.log("MongoDb connected successfully");
     console.log("Ready:", mongoose.connection.readyState);
-    console.log("DB:", mongoose.connection.name);
-    console.log("Host:", mongoose.connection.host);
   } catch (err) {
     console.error(`❌ MongoDB connection failed: ${err.message}`);
     console.log(`⏳ Retrying in ${RETRY_DELAY / 1000} seconds...`);

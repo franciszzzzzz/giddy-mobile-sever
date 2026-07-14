@@ -237,24 +237,28 @@ export const getBrands = handleAsyncError(async (req, res, next) => {
 // Get Products By Group or Price
 export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
   const { group } = req.params;
-  const { maxPrice, sort } = req.query;
+  const { maxPrice, sort, page = 1, limit = 20 } = req.query;
 
-  // Fetch all categories
-  const categoryResponse = await wc.get("/products/categories", {
+  const currentPage = Number(page);
+  const perPage = Number(limit);
+
+  //
+  // Fetch Categories
+  //
+
+  const { data: categories } = await wc.get("/products/categories", {
     params: {
       per_page: 100,
     },
   });
 
-  const categories = categoryResponse.data;
-
   let categoryIds = [];
   let groupInfo = null;
 
-  /**
-   * Special case for Kids
-   * Combine Boys + Girls
-   */
+  //
+  // Kids
+  //
+
   if (group.toLowerCase() === "kids") {
     const boys = categories.find(
       (c) => c.slug.toLowerCase() === "boys" || c.name.toLowerCase() === "boys",
@@ -281,7 +285,6 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
 
     categoryIds = [...collectChildren(boys), ...collectChildren(girls)];
 
-    // Remove duplicate category ids
     categoryIds = [...new Set(categoryIds)];
 
     groupInfo = {
@@ -290,18 +293,10 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
       slug: "kids",
     };
   } else {
-    /**
-     * Existing logic
-     */
+    //
+    // Normal Parent Category
+    //
 
-    // console.table(
-    //   categories.map((c) => ({
-    //     id: c.id,
-    //     name: c.name,
-    //     slug: c.slug,
-    //     parent: c.parent,
-    //   })),
-    // );
     const parent = categories.find(
       (category) =>
         category.parent === 0 &&
@@ -311,27 +306,23 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
     if (!parent) {
       const availableCategories = categories
         .filter((c) => c.parent === 0)
-        .map((c) => ({
-          id: c.id,
-          name: c.name,
-          slug: c.slug,
-        }));
+        .map((c) => c.slug);
 
       return next(
         new HandleError(
-          `"${group}" category not found. Available categories: ${availableCategories
-            .map((c) => `"${c.slug}"`)
-            .join(", ")}`,
+          `"${group}" category not found. Available: ${availableCategories.join(
+            ", ",
+          )}`,
           404,
         ),
       );
     }
 
-    const childCategories = categories.filter(
+    const children = categories.filter(
       (category) => category.parent === parent.id,
     );
 
-    categoryIds = [parent.id, ...childCategories.map((c) => c.id)];
+    categoryIds = [parent.id, ...children.map((c) => c.id)];
 
     groupInfo = {
       id: parent.id,
@@ -340,23 +331,25 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
     };
   }
 
-  /**
-   * Fetch products
-   */
+  //
+  // Fetch Products For Every Category
+  //
+
   const responses = await Promise.all(
     categoryIds.map((id) =>
       wc.get("/products", {
         params: {
           category: id,
-          per_page: 10,
+          per_page: 100,
         },
       }),
     ),
   );
 
-  /**
-   * Remove duplicate products
-   */
+  //
+  // Remove Duplicates
+  //
+
   const productMap = new Map();
 
   responses.forEach((response) => {
@@ -367,18 +360,20 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
 
   let products = [...productMap.values()];
 
-  /**
-   * Price filter
-   */
+  //
+  // Price Filter
+  //
+
   if (maxPrice) {
     products = products.filter(
-      (product) => Number(product.price) <= Number(maxPrice),
+      (product) => Number(product.price || 0) <= Number(maxPrice),
     );
   }
 
-  /**
-   * Sorting
-   */
+  //
+  // Sorting
+  //
+
   switch (sort) {
     case "bestsellers":
       products.sort(
@@ -388,9 +383,7 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
 
     case "newest":
       products.sort(
-        (a, b) =>
-          new Date(b.date_created).getTime() -
-          new Date(a.date_created).getTime(),
+        (a, b) => new Date(b.date_created) - new Date(a.date_created),
       );
       break;
 
@@ -412,7 +405,25 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
       break;
   }
 
-  res.status(200).json({
+  //
+  // Pagination (AFTER merge + sort + filter)
+  //
+
+  const totalProducts = products.length;
+
+  const totalPages = Math.ceil(totalProducts / perPage);
+
+  const startIndex = (currentPage - 1) * perPage;
+
+  const endIndex = startIndex + perPage;
+
+  const paginatedProducts = products.slice(startIndex, endIndex);
+
+  //
+  // Response
+  //
+
+  return res.status(200).json({
     success: true,
 
     group: groupInfo,
@@ -422,9 +433,21 @@ export const getProductsByGroup = handleAsyncError(async (req, res, next) => {
       maxPrice: maxPrice || null,
     },
 
-    count: products.length,
+    page: currentPage,
 
-    products,
+    limit: perPage,
+
+    totalProducts,
+
+    totalPages,
+
+    hasNextPage: currentPage < totalPages,
+
+    hasPreviousPage: currentPage > 1,
+
+    count: paginatedProducts.length,
+
+    products: paginatedProducts,
   });
 });
 
