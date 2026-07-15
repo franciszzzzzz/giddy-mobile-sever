@@ -66,63 +66,100 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
   const { email, password } = req.body;
 
   try {
-    // Authenticate against WordPress
+    // Authenticate with WordPress
     const wpResponse = await wp.post("/wp-json/jwt-auth/v1/token", {
       username: email,
       password,
     });
 
     const wpUser = wpResponse.data;
+
     console.log("WP LOGIN RESPONSE:", wpUser);
 
     if (!wpUser.token) {
       return next(new HandleError("Invalid credentials", 401));
     }
-    const customerResponse = await wc.get("/customers", {
-      params: {
-        email: wpUser.user_email,
-      },
-    });
-    console.log(customerResponse.data);
-    const customer = customerResponse.data[0];
 
-    if (!customer) {
-      return next(new HandleError("Customer not found.", 404));
+    //
+    // Try to get WooCommerce customer
+    //
+    let customer = null;
+
+    try {
+      const customerResponse = await wc.get("/customers", {
+        params: {
+          email: wpUser.user_email,
+        },
+      });
+
+      if (
+        Array.isArray(customerResponse.data) &&
+        customerResponse.data.length > 0
+      ) {
+        customer = customerResponse.data[0];
+      }
+    } catch (err) {
+      console.log("Unable to fetch WooCommerce customer.");
     }
 
-    // Create your own app tokens
+    //
+    // Build user object
+    //
+    const user = customer
+      ? {
+          id: customer.id,
+          email: customer.email,
+          firstName:
+            customer.first_name ||
+            wpUser.user_display_name ||
+            wpUser.user_nicename,
+          lastName: customer.last_name || "",
+          role: customer.role,
+        }
+      : {
+          id: wpUser.user_id,
+          email: wpUser.user_email,
+          firstName:
+            wpUser.user_display_name ||
+            wpUser.user_nicename ||
+            wpUser.user_email.split("@")[0],
+          lastName: "",
+          role: wpUser.role,
+        };
+
+    //
+    // Create app tokens
+    //
     const accessToken = createAccessToken({
-      id: wpUser.user_id,
-      role: wpUser.role,
-      email: wpUser.user_email,
-      name: wpUser.user_display_name,
+      id: user.id,
+      role: user.role,
+      email: user.email,
+      name: user.firstName,
     });
 
     const refreshToken = createRefreshToken();
-    // Check if user already has a refresh token
-    const existingRefresh = await redisClient.get(`user:${wpUser.user_id}`);
+
+    const existingRefresh = await redisClient.get(`user:${user.id}`);
 
     if (existingRefresh) {
       await redisClient.del(`refresh:${existingRefresh}`);
     }
+
     await redisClient.setEx(
       `refresh:${refreshToken}`,
       CACHE_TTL.REFRESH_TOKEN,
       JSON.stringify({
-        id: wpUser.user_id,
-        role: wpUser.role,
-        email: wpUser.user_email,
-        name: wpUser.user_display_name,
+        id: user.id,
+        role: user.role,
+        email: user.email,
+        name: user.firstName,
       }),
     );
-    await redisClient.setEx(
-      `wp:${wpUser.user_id}`,
-      CACHE_TTL.WP_TOKEN,
-      wpUser.token,
-    );
+
+    await redisClient.setEx(`wp:${user.id}`, CACHE_TTL.WP_TOKEN, wpUser.token);
 
     await redisClient.setEx(
-      `user:${wpUser.user_id}`,
+      `user:${user.id}`,
       CACHE_TTL.REFRESH_TOKEN,
       refreshToken,
     );
@@ -130,12 +167,7 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "Login successful",
-      user: {
-        id: customer.id,
-        email: customer.email,
-        firstName: customer.first_name,
-        role: customer.role,
-      },
+      user,
       accessToken,
       refreshToken,
     });
