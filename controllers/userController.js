@@ -83,7 +83,7 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
         email: wpUser.user_email,
       },
     });
-
+    console.log(customerResponse.data);
     const customer = customerResponse.data[0];
 
     if (!customer) {
