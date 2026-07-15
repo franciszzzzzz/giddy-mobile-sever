@@ -464,25 +464,42 @@ export const updatePassword = handleAsyncError(async (req, res, next) => {
 
 // Update User Profile not done
 export const updateUserProfile = handleAsyncError(async (req, res, next) => {
-  const { firstName, lastName, email } = req.body;
+  const { firstName } = req.body;
 
-  const updateData = {
-    first_name: firstName,
-    last_name: lastName,
-    email,
-  };
-  const customer = response.data;
+  if (!firstName?.trim()) {
+    return next(new HandleError("Name is required.", 400));
+  }
 
-  return res.status(200).json({
-    success: true,
-    message: "Profile updated successfully",
-    user: {
-      id: customer.id,
-      email: customer.email,
-      firstName: customer.first_name,
-      role: customer.role,
-    },
-  });
+  try {
+    const response = await wc.put(`/customers/${req.user.id}`, {
+      first_name: firstName.trim(),
+    });
+
+    const customer = response.data;
+
+    return res.status(200).json({
+      success: true,
+      message: "Profile updated successfully.",
+      user: {
+        id: customer.id,
+        email: customer.email,
+        firstName: customer.first_name,
+        role: customer.role,
+      },
+    });
+  } catch (error) {
+    console.error(
+      "UPDATE PROFILE ERROR:",
+      error.response?.data || error.message,
+    );
+
+    return next(
+      new HandleError(
+        error.response?.data?.message || "Unable to update profile.",
+        error.response?.status || 500,
+      ),
+    );
+  }
 });
 
 //Admin Getting User Information
