@@ -66,7 +66,9 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
   const { email, password } = req.body;
 
   try {
+    //
     // Authenticate with WordPress
+    //
     const wpResponse = await wp.post("/wp-json/jwt-auth/v1/token", {
       username: email,
       password,
@@ -74,14 +76,12 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
 
     const wpUser = wpResponse.data;
 
-    console.log("WP LOGIN RESPONSE:", wpUser);
-
     if (!wpUser.token) {
-      return next(new HandleError("Invalid credentials", 401));
+      return next(new HandleError("Invalid email or password.", 401));
     }
 
     //
-    // Try to get WooCommerce customer
+    // Try fetching WooCommerce customer
     //
     let customer = null;
 
@@ -99,52 +99,55 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
         customer = customerResponse.data[0];
       }
     } catch (err) {
-      console.log("Unable to fetch WooCommerce customer.");
+      console.error(
+        "Failed to fetch WooCommerce customer:",
+        err.response?.data || err.message,
+      );
     }
 
     //
-    // Build user object
+    // Build unified user object
     //
-    const user = customer
-      ? {
-          id: customer.id,
-          email: customer.email,
-          firstName:
-            customer.first_name ||
-            wpUser.user_display_name ||
-            wpUser.user_nicename,
-          lastName: customer.last_name || "",
-          role: customer.role,
-        }
-      : {
-          id: wpUser.user_id,
-          email: wpUser.user_email,
-          firstName:
-            wpUser.user_display_name ||
-            wpUser.user_nicename ||
-            wpUser.user_email.split("@")[0],
-          lastName: "",
-          role: wpUser.role,
-        };
+    const user = {
+      id: customer?.id || wpUser.user_id,
+
+      email: customer?.email || wpUser.user_email,
+
+      firstName:
+        customer?.first_name ||
+        wpUser.user_display_name ||
+        wpUser.user_nicename ||
+        wpUser.user_email.split("@")[0],
+
+      lastName: customer?.last_name || "",
+
+      role: customer?.role || wpUser.role,
+    };
 
     //
-    // Create app tokens
+    // Create App Tokens
     //
     const accessToken = createAccessToken({
       id: user.id,
       role: user.role,
       email: user.email,
-      name: user.firstName,
+      name: `${user.firstName} ${user.lastName}`.trim(),
     });
 
     const refreshToken = createRefreshToken();
 
+    //
+    // Remove old refresh token if it exists
+    //
     const existingRefresh = await redisClient.get(`user:${user.id}`);
 
     if (existingRefresh) {
       await redisClient.del(`refresh:${existingRefresh}`);
     }
 
+    //
+    // Store refresh token
+    //
     await redisClient.setEx(
       `refresh:${refreshToken}`,
       CACHE_TTL.REFRESH_TOKEN,
@@ -152,22 +155,33 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
         id: user.id,
         role: user.role,
         email: user.email,
-        name: user.firstName,
+        name: `${user.firstName} ${user.lastName}`.trim(),
       }),
     );
 
+    //
+    // Store WordPress token
+    //
     await redisClient.setEx(`wp:${user.id}`, CACHE_TTL.WP_TOKEN, wpUser.token);
 
+    //
+    // Map user -> refresh token
+    //
     await redisClient.setEx(
       `user:${user.id}`,
       CACHE_TTL.REFRESH_TOKEN,
       refreshToken,
     );
 
+    //
+    // Response
+    //
     return res.status(200).json({
       success: true,
       message: "Login successful",
+
       user,
+
       accessToken,
       refreshToken,
     });
@@ -364,18 +378,38 @@ export const resetPassword = handleAsyncError(async (req, res, next) => {
 
 // Get user Details
 export const getUserDetails = handleAsyncError(async (req, res, next) => {
-  const response = await wc.get(`/customers/${req.user.id}`);
+  let user = null;
 
-  const customer = response.data;
+  try {
+    // Try WooCommerce customer first
+    const response = await wc.get(`/customers/${req.user.id}`);
 
-  res.status(200).json({
-    success: true,
-    user: {
+    const customer = response.data;
+
+    user = {
       id: customer.id,
       email: customer.email,
-      firstName: customer.first_name,
+      firstName:
+        customer.first_name ||
+        customer.username ||
+        customer.email.split("@")[0],
+      lastName: customer.last_name || "",
       role: customer.role,
-    },
+    };
+  } catch (err) {
+    // Not a WooCommerce customer
+    user = {
+      id: req.user.id,
+      email: req.user.email,
+      firstName: req.user.name || req.user.email.split("@")[0],
+      lastName: "",
+      role: req.user.role,
+    };
+  }
+
+  return res.status(200).json({
+    success: true,
+    user,
   });
 });
 
