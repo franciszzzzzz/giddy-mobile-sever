@@ -78,6 +78,17 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
     if (!wpUser.token) {
       return next(new HandleError("Invalid credentials", 401));
     }
+    const customerResponse = await wc.get("/customers", {
+      params: {
+        email: wpUser.user_email,
+      },
+    });
+
+    const customer = customerResponse.data[0];
+
+    if (!customer) {
+      return next(new HandleError("Customer not found.", 404));
+    }
 
     // Create your own app tokens
     const accessToken = createAccessToken({
@@ -120,10 +131,10 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
       success: true,
       message: "Login successful",
       user: {
-        id: wpUser.user_id,
-        email: wpUser.user_email,
-        firstName: customer.data.first_name || wpUser.user_display_name,
-        role: wpUser.role,
+        id: customer.id,
+        email: customer.email,
+        firstName: customer.first_name,
+        role: customer.role,
       },
       accessToken,
       refreshToken,
@@ -321,11 +332,18 @@ export const resetPassword = handleAsyncError(async (req, res, next) => {
 
 // Get user Details
 export const getUserDetails = handleAsyncError(async (req, res, next) => {
-  const token = req.header("Authorization")?.replace("Bearer ", "");
+  const response = await wc.get(`/customers/${req.user.id}`);
+
+  const customer = response.data;
 
   res.status(200).json({
     success: true,
-    user: req.user,
+    user: {
+      id: customer.id,
+      email: customer.email,
+      firstName: customer.first_name,
+      role: customer.role,
+    },
   });
 });
 
