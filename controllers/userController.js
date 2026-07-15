@@ -110,15 +110,13 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
     //
     const user = {
       id: customer?.id || wpUser.user_id,
-
+      wpUserId: wpUser.user_id,
       email: customer?.email || wpUser.user_email,
-
       firstName:
         customer?.first_name ||
         wpUser.user_display_name ||
         wpUser.user_nicename ||
         wpUser.user_email.split("@")[0],
-
       role: customer?.role || wpUser.role,
     };
 
@@ -126,7 +124,8 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
     // Create App Tokens
     //
     const accessToken = createAccessToken({
-      id: user.id,
+      id: user.id, // WooCommerce customer id
+      wpUserId: user.wpUserId, // WordPress user id
       role: user.role,
       email: user.email,
       firstName: user.firstName,
@@ -294,6 +293,7 @@ export const logoutUser = handleAsyncError(async (req, res, next) => {
     message: "Logged out successfully.",
   });
 });
+
 // REQUEST PASSWORD RESET
 export const requestPasswordReset = handleAsyncError(async (req, res, next) => {
   const { email } = req.body;
@@ -399,7 +399,7 @@ export const getUserDetails = handleAsyncError(async (req, res, next) => {
     user = {
       id: req.user.id,
       email: req.user.email,
-      firstName: req.user.name || req.user.email.split("@")[0],
+      firstName: req.user.firstName || req.user.email.split("@")[0],
       lastName: "",
       role: req.user.role,
     };
@@ -471,13 +471,17 @@ export const updateUserProfile = handleAsyncError(async (req, res, next) => {
     last_name: lastName,
     email,
   };
+  const customer = response.data;
 
-  const response = await wc.put(`/customers/${req.user.id}`, updateData);
-
-  res.status(200).json({
+  return res.status(200).json({
     success: true,
     message: "Profile updated successfully",
-    user: response.data,
+    user: {
+      id: customer.id,
+      email: customer.email,
+      firstName: customer.first_name,
+      role: customer.role,
+    },
   });
 });
 

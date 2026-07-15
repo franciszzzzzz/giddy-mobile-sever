@@ -7,7 +7,7 @@ export const verifyUserAuth = handleAsyncError(async (req, res, next) => {
     req.cookies?.token || req.header("Authorization")?.replace("Bearer ", "");
 
   if (!token) {
-    return next(new HandleError("Please login to access this resource", 401));
+    return next(new HandleError("Please login to access this resource.", 401));
   }
 
   try {
@@ -15,16 +15,17 @@ export const verifyUserAuth = handleAsyncError(async (req, res, next) => {
 
     req.user = {
       id: decoded.id,
+      wpUserId: decoded.wpUserId,
       role: decoded.role,
       email: decoded.email,
-      name: decoded.name,
+      firstName: decoded.firstName,
     };
 
     next();
   } catch (error) {
     console.log("JWT ERROR:", error.message);
 
-    return next(new HandleError("Invalid or expired token", 401));
+    return next(new HandleError("Invalid or expired token.", 401));
   }
 });
 export const roleBasedAccess = (...roles) => {

@@ -29,9 +29,7 @@ router.route("/password/forgot").post(requestPasswordReset);
 router.route("/reset/:token").post(resetPassword);
 router.route("/profile").get(verifyUserAuth, getUserDetails);
 router.route("/password/update").put(verifyUserAuth, updatePassword);
-router
-  .route("/profile/update")
-  .put(verifyUserAuth, upload.single("avatar"), updateUserProfile);
+router.route("/profile/update").put(verifyUserAuth, updateUserProfile);
 router.route("/admin/login").post(loginAdmin);
 router
   .route("/admin/users")
