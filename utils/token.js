@@ -7,7 +7,7 @@ export const createAccessToken = (user) => {
       id: user.id,
       role: user.role,
       email: user.email,
-      name: user.name,
+      firstName: user.firstName,
     },
     process.env.JWT_ACCESS_SECRET,
     {

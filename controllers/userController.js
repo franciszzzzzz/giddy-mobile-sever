@@ -119,8 +119,6 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
         wpUser.user_nicename ||
         wpUser.user_email.split("@")[0],
 
-      lastName: customer?.last_name || "",
-
       role: customer?.role || wpUser.role,
     };
 
@@ -131,7 +129,7 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
       id: user.id,
       role: user.role,
       email: user.email,
-      name: `${user.firstName} ${user.lastName}`.trim(),
+      firstName: user.firstName,
     });
 
     const refreshToken = createRefreshToken();
@@ -155,7 +153,7 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
         id: user.id,
         role: user.role,
         email: user.email,
-        name: `${user.firstName} ${user.lastName}`.trim(),
+        firstName: user.firstName,
       }),
     );
 
