@@ -100,15 +100,10 @@ export const addToCart = handleAsyncError(async (req, res, next) => {
 export const getCart = handleAsyncError(async (req, res, next) => {
   const customerId = req.user.id;
 
-  //
   // Get Cart
-  //
-  return ShoppingCart.findOne({ customerId }).lean();
+  const cart = await ShoppingCart.findOne({ customerId }).lean();
 
-  //
   // Empty Cart
-  //
-
   if (!cart || cart.items.length === 0) {
     return res.status(200).json({
       success: true,
@@ -118,10 +113,7 @@ export const getCart = handleAsyncError(async (req, res, next) => {
     });
   }
 
-  //
-  // Calculate totals and build response
-  //
-
+  // Calculate totals
   const { subtotal, totalItems, items } = calculateTotals(cart.items);
 
   return res.status(200).json({
