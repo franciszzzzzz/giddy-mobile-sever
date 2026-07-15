@@ -37,7 +37,28 @@ export const registerUser = handleAsyncError(async (req, res, next) => {
   } catch (error) {
     console.error("REGISTER ERROR:", error.response?.data || error.message);
 
-    return next(new HandleError("Registration failed", 500));
+    const wcError = error.response?.data;
+
+    // Email already exists
+    if (wcError?.code === "registration-error-email-exists") {
+      return next(
+        new HandleError("An account with this email already exists.", 409),
+      );
+    }
+
+    // Username already exists
+    if (wcError?.code === "registration-error-username-exists") {
+      return next(
+        new HandleError("An account with this email already exists.", 409),
+      );
+    }
+
+    return next(
+      new HandleError(
+        wcError?.message || "Registration failed.",
+        error.response?.status || 500,
+      ),
+    );
   }
 });
 
@@ -101,7 +122,7 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
       user: {
         id: wpUser.user_id,
         email: wpUser.user_email,
-        name: wpUser.user_display_name,
+        firstName: customer.data.first_name || wpUser.user_display_name,
         role: wpUser.role,
       },
       accessToken,
@@ -361,43 +382,20 @@ export const updatePassword = handleAsyncError(async (req, res, next) => {
 
 // Update User Profile not done
 export const updateUserProfile = handleAsyncError(async (req, res, next) => {
-  const { name, email } = req.body;
-  const updateUserDetails = { name, email };
+  const { firstName, lastName, email } = req.body;
 
-  // ✅ If an image file is uploaded, process it
-  if (req.file) {
-    const user = await UserModel.findById(req.user.id);
+  const updateData = {
+    first_name: firstName,
+    last_name: lastName,
+    email,
+  };
 
-    // 🗑️ Delete old avatar from Cloudinary if it exists
-    if (user.avatar && user.avatar.publicId) {
-      await deleteFromCloudinary(user.avatar.publicId);
-    }
-
-    // ☁️ Upload new image to Cloudinary
-    const result = await uploadToCloudinary(req.file.buffer, "avatars", {
-      width: 500,
-      height: 500,
-      crop: "fill",
-    });
-
-    // 🆕 Update avatar info in DB
-    updateUserDetails.avatar = {
-      publicId: result.public_id,
-      url: result.secure_url,
-    };
-  }
-
-  // ✏️ Update name/email/avatar in MongoDB
-  const user = await UserModel.findByIdAndUpdate(
-    req.user.id,
-    updateUserDetails,
-    { new: true, runValidators: true },
-  );
+  const response = await wc.put(`/customers/${req.user.id}`, updateData);
 
   res.status(200).json({
     success: true,
-    message: "User Profile Updated Successfully",
-    user,
+    message: "Profile updated successfully",
+    user: response.data,
   });
 });
 
