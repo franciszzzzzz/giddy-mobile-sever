@@ -792,7 +792,7 @@ export const createReviewForProduct = handleAsyncError(
       product_id: productId,
       review: comment,
       rating: Number(rating),
-      reviewer: req.user.name,
+      reviewer: req.user.firstName,
       reviewer_email: req.user.email,
     });
     console.log("REQ USER:", req.user);

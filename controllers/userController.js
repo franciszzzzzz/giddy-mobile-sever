@@ -10,7 +10,8 @@ import {
 import HandleError from "../utils/handleError.js";
 import { sendEmail } from "../utils/sendEmail.js";
 import { createAccessToken, createRefreshToken } from "../utils/token.js";
-
+import { log } from "console";
+import axios from "axios";
 //register user
 export const registerUser = handleAsyncError(async (req, res, next) => {
   const { name, email, password } = req.body;
@@ -178,7 +179,7 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
       message: "Login successful",
 
       user,
-
+      // wpToken: wpUser.token,
       accessToken,
       refreshToken,
     });
@@ -462,7 +463,7 @@ export const updatePassword = handleAsyncError(async (req, res, next) => {
   }
 });
 
-// Update User Profile not done
+// Update User Profile done
 export const updateUserProfile = handleAsyncError(async (req, res, next) => {
   const { firstName } = req.body;
 
@@ -470,26 +471,43 @@ export const updateUserProfile = handleAsyncError(async (req, res, next) => {
     return next(new HandleError("Name is required.", 400));
   }
 
-  try {
-    const response = await wc.put(`/customers/${req.user.id}`, {
-      first_name: firstName.trim(),
-    });
+  // however you currently retrieve it
+  const wpToken = await redisClient.get(`wp:${req.user.id}`);
 
-    const customer = response.data;
+  if (!wpToken) {
+    return next(
+      new HandleError("WordPress session expired. Please log in again.", 401),
+    );
+  }
+
+  try {
+    const { data } = await axios.post(
+      `${process.env.WP_BASE_URL}/wp-json/wp/v2/users/me`,
+      {
+        first_name: firstName.trim(),
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${wpToken}`,
+          "Content-Type": "application/json",
+        },
+      },
+    );
 
     return res.status(200).json({
       success: true,
       message: "Profile updated successfully.",
       user: {
-        id: customer.id,
-        email: customer.email,
-        firstName: customer.first_name,
-        role: customer.role,
+        id: data.id,
+        email: data.email,
+        firstName: data.first_name,
+        role: data.roles?.[0] || null,
       },
     });
   } catch (error) {
     console.error(
       "UPDATE PROFILE ERROR:",
+      error.response?.status,
       error.response?.data || error.message,
     );
 
