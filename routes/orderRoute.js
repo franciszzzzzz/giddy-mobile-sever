@@ -18,7 +18,7 @@ router.use((req, res, next) => {
 });
 
 // Specific routes first
-router.route("/order/user").get(verifyUserAuth, allMyOrders); // This FIRST
+router.route("/orders/user").get(verifyUserAuth, allMyOrders); // This FIRST
 router.route("/new/order").post(verifyUserAuth, createNewOrder);
 
 // Parameter routes last

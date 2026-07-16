@@ -114,10 +114,11 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
       wpUserId: wpUser.user_id,
       email: customer?.email || wpUser.user_email,
       firstName:
-        customer?.first_name ||
         wpUser.user_display_name ||
+        customer?.first_name ||
         wpUser.user_nicename ||
         wpUser.user_email.split("@")[0],
+
       role: customer?.role || wpUser.role,
     };
 

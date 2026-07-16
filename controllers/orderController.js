@@ -9,89 +9,146 @@ export const createNewOrder = handleAsyncError(async (req, res, next) => {
     shippingInfo,
     orderItems,
     paymentInfo,
-    itemPrice,
-    taxPrice,
-    shippingPrice,
-    totalPrice,
-    orderStatus,
+    shippingPrice = 0,
+    taxPrice = 0,
   } = req.body;
-  // ADD LOGGING to see what's being received
-  console.log("📥 Received order data:", {
-    orderStatus: orderStatus,
-    paymentInfo: paymentInfo,
-    fullBody: req.body,
-  });
-  // Check if an order with this payment reference already exists
-  const existingOrder = await orderModel.findOne({
-    "paymentInfo.id": paymentInfo.id,
-    user: req.user._id,
-  });
-
-  if (existingOrder) {
-    // Update the existing order with new order items
-    existingOrder.orderItems = orderItems;
-    existingOrder.itemPrice = itemPrice;
-    existingOrder.taxPrice = taxPrice;
-    existingOrder.shippingPrice = shippingPrice;
-    existingOrder.totalPrice = totalPrice;
-    existingOrder.shippingInfo = shippingInfo;
-
-    await existingOrder.save();
-
-    return res.status(200).json({
-      success: true,
-      message: "Order updated successfully",
-      order: existingOrder,
-    });
-  }
 
   if (!orderItems || orderItems.length === 0) {
-    return next(new ErrorHandler("Cart is empty", 400));
+    return next(new HandleError("Cart is empty.", 400));
   }
 
-  // Create new order if none exists
-  const order = await orderModel.create({
-    shippingInfo,
-    orderItems,
-    paymentInfo,
-    itemPrice,
-    taxPrice,
-    shippingPrice,
-    totalPrice,
-    paidAt: Date.now(),
-    user: req.user._id,
+  //
+  // Convert frontend cart items to WooCommerce line_items
+  //
+
+  const line_items = orderItems.map((item) => ({
+    product_id: Number(item.productId),
+    variation_id: item.variationId ? Number(item.variationId) : undefined,
+    quantity: Number(item.quantity),
+  }));
+
+  //
+  // Create WooCommerce Order
+  //
+
+  const response = await wc.post("/orders", {
+    customer_id: req.user.id,
+
+    status: "pending",
+
+    payment_method: paymentInfo?.method || "paystack",
+    payment_method_title: paymentInfo?.methodTitle || "Paystack",
+
+    set_paid: false,
+
+    billing: {
+      first_name: shippingInfo.firstName,
+      last_name: shippingInfo.lastName,
+      address_1: shippingInfo.address1,
+      address_2: shippingInfo.address2 || "",
+      city: shippingInfo.city,
+      state: shippingInfo.state,
+      postcode: shippingInfo.postcode,
+      country: shippingInfo.country,
+      phone: shippingInfo.phone,
+      email: req.user.email,
+    },
+
+    shipping: {
+      first_name: shippingInfo.firstName,
+      last_name: shippingInfo.lastName,
+      address_1: shippingInfo.address1,
+      address_2: shippingInfo.address2 || "",
+      city: shippingInfo.city,
+      state: shippingInfo.state,
+      postcode: shippingInfo.postcode,
+      country: shippingInfo.country,
+    },
+
+    line_items,
+
+    shipping_lines: [
+      {
+        method_title: "Shipping",
+        method_id: "flat_rate",
+        total: String(shippingPrice),
+      },
+    ],
+
+    fee_lines: [],
+
+    meta_data: [
+      {
+        key: "_payment_reference",
+        value: paymentInfo?.reference || "",
+      },
+    ],
   });
 
-  res.status(201).json({
+  return res.status(201).json({
     success: true,
-    order,
+    message: "Order created successfully.",
+    order: response.data,
   });
 });
 
 // Getting Single Product
 export const getSingleOrder = handleAsyncError(async (req, res, next) => {
-  const order = await orderModel
-    .findById(req.params.id)
-    .populate("user", "name email");
-  if (!order) {
-    return next(new HandleError("Order Not Found", 404));
+  const { id } = req.params;
+
+  try {
+    const response = await wc.get(`/orders/${id}`);
+
+    const order = response.data;
+
+    // Ensure the order belongs to the authenticated customer
+    if (Number(order.customer_id) !== Number(req.user.id)) {
+      return next(new HandleError("Unauthorized.", 403));
+    }
+
+    return res.status(200).json({
+      success: true,
+      order,
+    });
+  } catch (error) {
+    if (error.response?.status === 404) {
+      return next(new HandleError("Order not found.", 404));
+    }
+
+    return next(
+      new HandleError(
+        error.response?.data?.message || "Unable to fetch order.",
+        error.response?.status || 500,
+      ),
+    );
   }
-  res.status(200).json({
-    success: true,
-    order,
-  });
 });
 
-//Getting Order of Login User
+// Get all orders of the logged-in customer
 export const allMyOrders = handleAsyncError(async (req, res, next) => {
-  const orders = await orderModel.find({ user: req.user._id });
-  if (!orders) {
-    return next(new HandleError("Orders not found", 404));
+  try {
+    const response = await wc.get("/orders", {
+      params: {
+        customer: req.user.id,
+        per_page: 100, // adjust if needed
+        page: 1,
+        orderby: "date",
+        order: "desc",
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      orders: response.data,
+    });
+  } catch (error) {
+    return next(
+      new HandleError(
+        error.response?.data?.message || "Unable to fetch orders.",
+        error.response?.status || 500,
+      ),
+    );
   }
-  res.status(200).json({
-    success: true,
-    orders,
-  });
 });
 
 //Getting All Orders
@@ -114,7 +171,7 @@ export const getAllOrders = handleAsyncError(async (req, res, next) => {
   const allForAmount = await orderModel.find().select("totalPrice");
   const totalAmount = allForAmount.reduce(
     (sum, o) => sum + (o.totalPrice || 0),
-    0
+    0,
   );
 
   res.status(200).json({
@@ -138,7 +195,7 @@ export const updateOrderStatus = handleAsyncError(async (req, res, next) => {
     return next(new HandleError("This Order Has Already Been Delivered", 400));
   }
   await Promise.all(
-    order.orderItems.map((item) => updateQuantity(item.product, item.quantity))
+    order.orderItems.map((item) => updateQuantity(item.product, item.quantity)),
   );
   order.orderStatus = req.body.status;
   if (order.orderStatus === "Delivered") {
@@ -168,7 +225,7 @@ export const deleteOrder = handleAsyncError(async (req, res, next) => {
   }
   if (order.orderStatus !== "Delivered") {
     return next(
-      new HandleError("Order is Under Processing And Cannot Be Deleted ", 400)
+      new HandleError("Order is Under Processing And Cannot Be Deleted ", 400),
     );
   }
   await order.deleteOne({ _id: req.params.id });
