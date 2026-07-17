@@ -2,6 +2,7 @@ import orderModel from "../models/orderModel.js";
 import productModel from "../models/productModel.js";
 import HandleError from "../utils/handleError.js";
 import handleAsyncError from "../middleware/handleAsyncError.js";
+import { wc, wp } from "../config/db.js";
 
 // Create New Order
 export const createNewOrder = handleAsyncError(async (req, res, next) => {
@@ -142,6 +143,11 @@ export const allMyOrders = handleAsyncError(async (req, res, next) => {
       orders: response.data,
     });
   } catch (error) {
+    console.error("GET ORDERS ERROR:");
+    console.error("Status:", error.response?.status);
+    console.error("Data:", error.response?.data);
+    console.error("Message:", error.message);
+
     return next(
       new HandleError(
         error.response?.data?.message || "Unable to fetch orders.",

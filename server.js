@@ -8,6 +8,7 @@ const { connectMongoDb } = await import("./config/db.js");
 const { default: app } = await import("./app.js");
 
 await connectMongoDb();
+
 // transporter.verify((error) => {
 //   if (error) {
 //     console.error("SMTP CONNECTION FAILED:", error);

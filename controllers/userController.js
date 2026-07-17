@@ -76,6 +76,7 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
     });
 
     const wpUser = wpResponse.data;
+    console.log(wpUser);
 
     if (!wpUser.token) {
       return next(new HandleError("Invalid email or password.", 401));
