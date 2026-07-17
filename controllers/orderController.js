@@ -6,23 +6,28 @@ import { wc, wp } from "../config/db.js";
 
 // Create New Order
 export const createNewOrder = handleAsyncError(async (req, res, next) => {
-  const {
-    shippingInfo,
-    orderItems,
-    paymentInfo,
-    shippingPrice = 0,
-    taxPrice = 0,
-  } = req.body;
+  const { shippingInfo, shippingPrice = 0, taxPrice = 0 } = req.body;
 
-  if (!orderItems || orderItems.length === 0) {
+  //
+  // Validate shipping info
+  //
+  if (!shippingInfo) {
+    return next(new HandleError("Shipping information is required.", 400));
+  }
+
+  //
+  // Get user's cart
+  //
+  const cart = await getCartByCustomer(req.user.id);
+
+  if (!cart || cart.items.length === 0) {
     return next(new HandleError("Cart is empty.", 400));
   }
 
   //
-  // Convert frontend cart items to WooCommerce line_items
+  // Build WooCommerce line items from cart
   //
-
-  const line_items = orderItems.map((item) => ({
+  const line_items = cart.items.map((item) => ({
     product_id: Number(item.productId),
     variation_id: item.variationId ? Number(item.variationId) : undefined,
     quantity: Number(item.quantity),
@@ -31,14 +36,13 @@ export const createNewOrder = handleAsyncError(async (req, res, next) => {
   //
   // Create WooCommerce Order
   //
-
   const response = await wc.post("/orders", {
     customer_id: req.user.id,
 
     status: "pending",
 
-    payment_method: paymentInfo?.method || "paystack",
-    payment_method_title: paymentInfo?.methodTitle || "Paystack",
+    payment_method: "paystack",
+    payment_method_title: "Paystack",
 
     set_paid: false,
 
@@ -70,18 +74,9 @@ export const createNewOrder = handleAsyncError(async (req, res, next) => {
 
     shipping_lines: [
       {
-        method_title: "Shipping",
         method_id: "flat_rate",
+        method_title: "Shipping",
         total: String(shippingPrice),
-      },
-    ],
-
-    fee_lines: [],
-
-    meta_data: [
-      {
-        key: "_payment_reference",
-        value: paymentInfo?.reference || "",
       },
     ],
   });
@@ -92,7 +87,6 @@ export const createNewOrder = handleAsyncError(async (req, res, next) => {
     order: response.data,
   });
 });
-
 // Getting Single Product
 export const getSingleOrder = handleAsyncError(async (req, res, next) => {
   const { id } = req.params;
