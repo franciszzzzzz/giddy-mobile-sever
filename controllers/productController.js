@@ -175,15 +175,15 @@ export const getAllProduct = handleAsyncError(async (req, res, next) => {
       params,
     });
 
-    console.table(
-      response.data
-        .filter((p) => p.name.toLowerCase().includes("storm"))
-        .map((p) => ({
-          id: p.id,
-          name: p.name,
-          categories: p.categories.map((c) => c.name).join(", "),
-        })),
-    );
+    // console.table(
+    //   response.data
+    //     .filter((p) => p.name.toLowerCase().includes("storm"))
+    //     .map((p) => ({
+    //       id: p.id,
+    //       name: p.name,
+    //       categories: p.categories.map((c) => c.name).join(", "),
+    //     })),
+    // );
     const products = response.data;
 
     return res.status(200).json({

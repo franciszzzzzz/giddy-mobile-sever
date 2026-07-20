@@ -3,8 +3,7 @@ import HandleError from "../utils/handleError.js";
 import handleAsyncError from "./handleAsyncError.js";
 
 export const verifyUserAuth = handleAsyncError(async (req, res, next) => {
-  const token =
-    req.cookies?.token || req.header("Authorization")?.replace("Bearer ", "");
+  const token = req.header("Authorization")?.replace("Bearer ", "");
 
   if (!token) {
     return next(new HandleError("Please login to access this resource.", 401));
