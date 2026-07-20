@@ -2,11 +2,12 @@ import orderModel from "../models/orderModel.js";
 import productModel from "../models/productModel.js";
 import HandleError from "../utils/handleError.js";
 import handleAsyncError from "../middleware/handleAsyncError.js";
+import { calculateShipping } from "../utils/shipping.js";
 import { wc, wp } from "../config/db.js";
+import { getCartByCustomer } from "../utils/cartService.js";
 
-// Create New Order
 export const createNewOrder = handleAsyncError(async (req, res, next) => {
-  const { shippingInfo, shippingPrice = 0, taxPrice = 0 } = req.body;
+  const { shippingInfo } = req.body;
 
   //
   // Validate shipping info
@@ -16,7 +17,13 @@ export const createNewOrder = handleAsyncError(async (req, res, next) => {
   }
 
   //
-  // Get user's cart
+  // Calculate shipping & tax
+  //
+  const shippingPrice = calculateShipping(shippingInfo.state);
+  const taxPrice = 0;
+
+  //
+  // Get customer's cart
   //
   const cart = await getCartByCustomer(req.user.id);
 
@@ -25,7 +32,7 @@ export const createNewOrder = handleAsyncError(async (req, res, next) => {
   }
 
   //
-  // Build WooCommerce line items from cart
+  // Build WooCommerce line items
   //
   const line_items = cart.items.map((item) => ({
     product_id: Number(item.productId),
@@ -84,6 +91,8 @@ export const createNewOrder = handleAsyncError(async (req, res, next) => {
   return res.status(201).json({
     success: true,
     message: "Order created successfully.",
+    shippingPrice,
+    taxPrice,
     order: response.data,
   });
 });
