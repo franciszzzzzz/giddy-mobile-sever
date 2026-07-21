@@ -56,8 +56,7 @@ export const createNewOrder = handleAsyncError(async (req, res, next) => {
     billing: {
       first_name: shippingInfo.firstName,
       last_name: shippingInfo.lastName,
-      address_1: shippingInfo.address1,
-      address_2: shippingInfo.address2 || "",
+      address_1: shippingInfo.address,
       city: shippingInfo.city,
       state: shippingInfo.state,
       postcode: shippingInfo.postcode,
