@@ -10,6 +10,7 @@ import product from "./routes/productRoutes.js";
 import user from "./routes/userRoutes.js";
 import order from "./routes/orderRoute.js";
 import cartRoutes from "./routes/cartRoutes.js";
+import wishlistRoute from "./routes/wishlistRoute.js";
 import paystackRoutes from "./routes/paystackRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 
@@ -67,6 +68,7 @@ app.use("/api/v1", product);
 app.use("/api/v1", user);
 app.use("/api/v1", order);
 app.use("/api/v1", cartRoutes);
+app.use("/api/v1", wishlistRoute);
 app.use("/api/v1", paystackRoutes);
 app.use("/api/v1", messageRoutes);
 

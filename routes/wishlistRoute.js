@@ -8,8 +8,9 @@ import {
   getWishlist,
   getWishlistItemCount,
   removeFromWishlist,
-} from "../controllers/wishlistController";
+} from "../controllers/wishlistController.js";
 
+const router = express.Router();
 router.post("/wishlist", verifyUserAuth, addToWishlist);
 
 router.get("/wishlist", verifyUserAuth, getWishlist);
@@ -21,3 +22,4 @@ router.delete("/wishlist/clear", verifyUserAuth, clearWishlist);
 router.get("/wishlist/count", verifyUserAuth, getWishlistItemCount);
 
 router.get("/wishlist/check/:productId", verifyUserAuth, checkWishlistItem);
+export default router;
