@@ -92,15 +92,10 @@ export const createNewOrder = handleAsyncError(async (req, res, next) => {
   const idempotencyKey = crypto.randomUUID();
   await Payment.create({
     customerId: req.user.id,
-
     wcOrderId: response.data.id,
-
-    amount: Number(response.data.total),
-
+    amount: parseFloat(response.data.total),
     idempotencyKey,
-
     status: "pending",
-
     paymentMethod: "paystack",
   });
   return res.status(201).json({

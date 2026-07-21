@@ -1,9 +1,9 @@
 // ✅ Initialize transaction
 import axios from "axios";
-import Payment from "../models/payment.js";
+import Payment from "../models/paymentModel.js";
 import { wc } from "../config/db.js";
 import { deleteCart } from "../utils/cartService.js";
-import HandleError from "../middleware/handleError.js";
+import HandleError from "../utils/handleError.js";
 import handleAsyncError from "../middleware/handleAsyncError.js";
 
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
@@ -11,6 +11,9 @@ const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
 export const initializePayment = handleAsyncError(async (req, res, next) => {
   const { orderId, idempotencyKey } = req.body;
 
+  //
+  // Validate Request
+  //
   if (!orderId || !idempotencyKey) {
     return next(
       new HandleError("Order ID and idempotency key are required.", 400),
@@ -18,10 +21,10 @@ export const initializePayment = handleAsyncError(async (req, res, next) => {
   }
 
   //
-  // Find Payment
+  // Find Payment Record
   //
   const payment = await Payment.findOne({
-    wcOrderId: orderId,
+    wcOrderId: Number(orderId),
     idempotencyKey,
   });
 
@@ -30,32 +33,55 @@ export const initializePayment = handleAsyncError(async (req, res, next) => {
   }
 
   //
-  // Already initialized?
+  // Already Paid?
+  //
+  if (payment.status === "paid") {
+    return next(new HandleError("This order has already been paid for.", 400));
+  }
+
+  //
+  // Already Initialized?
   //
   if (payment.reference) {
     return res.status(200).json({
       success: true,
       message: "Payment already initialized.",
+      authorization_url: null,
+      access_code: null,
       reference: payment.reference,
     });
   }
 
   //
-  // Get WooCommerce order
+  // Fetch WooCommerce Order
   //
   const { data: order } = await wc.get(`/orders/${orderId}`);
 
   //
-  // Initialize Paystack
+  // Don't initialize payment if WooCommerce already marked it paid
+  //
+  if (order.date_paid || order.status === "processing") {
+    payment.status = "paid";
+    await payment.save();
+
+    return next(new HandleError("This order has already been paid.", 400));
+  }
+
+  //
+  // Initialize Paystack Transaction
   //
   const { data } = await axios.post(
     "https://api.paystack.co/transaction/initialize",
     {
       email: order.billing.email,
-      amount: payment.amount,
+
+      // Kobo
+      amount: Math.round(payment.amount * 100),
+
+      currency: "NGN",
 
       metadata: {
-        orderId,
+        wcOrderId: payment.wcOrderId,
         customerId: payment.customerId,
       },
     },
@@ -63,29 +89,39 @@ export const initializePayment = handleAsyncError(async (req, res, next) => {
       headers: {
         Authorization: `Bearer ${PAYSTACK_SECRET}`,
         "Content-Type": "application/json",
+
+        // Prevent duplicate transaction initialization
+        "Idempotency-Key": payment.idempotencyKey,
       },
     },
   );
 
   //
-  // Save reference
+  // Save Paystack Reference
   //
   payment.reference = data.data.reference;
   payment.status = "initialized";
 
   await payment.save();
 
+  //
+  // Response
+  //
   return res.status(200).json({
     success: true,
+    message: "Payment initialized successfully.",
 
     authorization_url: data.data.authorization_url,
-
     access_code: data.data.access_code,
-
     reference: data.data.reference,
+
+    payment: {
+      orderId: payment.wcOrderId,
+      amount: payment.amount,
+      status: payment.status,
+    },
   });
 });
-
 // ✅ Verify transaction
 export const verifyPayment = handleAsyncError(async (req, res, next) => {
   const { reference } = req.params;
@@ -166,7 +202,7 @@ export const paymentWebhook = async (req, res) => {
     //
     const hash = crypto
       .createHmac("sha512", PAYSTACK_SECRET)
-      .update(JSON.stringify(req.body))
+      .update(req.rawBody)
       .digest("hex");
 
     const signature = req.headers["x-paystack-signature"];

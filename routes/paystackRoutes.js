@@ -2,7 +2,7 @@ import express from "express";
 import {
   initializePayment,
   verifyPayment,
-  paystackWebhook,
+  paymentWebhook,
 } from "../controllers/paystackController.js";
 import { verifyUserAuth } from "../middleware/userAuth.js";
 
@@ -14,7 +14,7 @@ router
   .route("/webhook")
   .post(
     express.json({ verify: (req, res, buf) => (req.rawBody = buf) }),
-    paystackWebhook,
+    paymentWebhook,
   );
 
 export default router;
