@@ -1,141 +1,233 @@
+// ✅ Initialize transaction
 import axios from "axios";
-import crypto from "crypto";
+import Payment from "../models/payment.js";
+import { wc } from "../config/db.js";
+import { deleteCart } from "../utils/cartService.js";
+import HandleError from "../middleware/handleError.js";
 import handleAsyncError from "../middleware/handleAsyncError.js";
-import Order from "../models/orderModel.js";
 
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
 
-// ✅ Initialize transaction
-export const initializePayment = handleAsyncError(async (req, res) => {
-  const { amount, email } = req.body;
+export const initializePayment = handleAsyncError(async (req, res, next) => {
+  const { orderId, idempotencyKey } = req.body;
 
-  console.log("🟢 Backend payment initialization:", {
-    receivedAmount: Number(amount),
-    receivedAmountInNaira: Number(amount / 100),
-    email: email,
+  if (!orderId || !idempotencyKey) {
+    return next(
+      new HandleError("Order ID and idempotency key are required.", 400),
+    );
+  }
+
+  //
+  // Find Payment
+  //
+  const payment = await Payment.findOne({
+    wcOrderId: orderId,
+    idempotencyKey,
   });
 
-  if (!amount || !email) {
-    return res.status(400).json({
-      success: false,
-      message: "Missing required fields: amount or email",
-    });
+  if (!payment) {
+    return next(new HandleError("Payment record not found.", 404));
   }
 
-  try {
-    const response = await axios.post(
-      "https://api.paystack.co/transaction/initialize",
-      {
-        email,
-        amount: amount, // Make sure this is correct
-        currency: "NGN", // Explicitly set currency
-        callback_url: "http://localhost:5173/payment/success",
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${PAYSTACK_SECRET}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    console.log("✅ Paystack response:", {
-      paystackAmount: response.data.data.amount,
-      paystackAmountInNaira: response.data.data.amount / 100,
-      authorization_url: response.data.data.authorization_url,
-    });
-
+  //
+  // Already initialized?
+  //
+  if (payment.reference) {
     return res.status(200).json({
       success: true,
-      message: "Payment initialized successfully",
-      authorization_url: response.data.data.authorization_url,
-      access_code: response.data.data.access_code,
-      reference: response.data.data.reference,
-    });
-  } catch (error) {
-    console.error("❌ Paystack API error:", {
-      status: error.response?.status,
-      data: error.response?.data,
-      message: error.response?.data?.message,
-    });
-
-    return res.status(400).json({
-      success: false,
-      message: error.response?.data?.message || "Payment initialization failed",
+      message: "Payment already initialized.",
+      reference: payment.reference,
     });
   }
+
+  //
+  // Get WooCommerce order
+  //
+  const { data: order } = await wc.get(`/orders/${orderId}`);
+
+  //
+  // Initialize Paystack
+  //
+  const { data } = await axios.post(
+    "https://api.paystack.co/transaction/initialize",
+    {
+      email: order.billing.email,
+      amount: payment.amount,
+
+      metadata: {
+        orderId,
+        customerId: payment.customerId,
+      },
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${PAYSTACK_SECRET}`,
+        "Content-Type": "application/json",
+      },
+    },
+  );
+
+  //
+  // Save reference
+  //
+  payment.reference = data.data.reference;
+  payment.status = "initialized";
+
+  await payment.save();
+
+  return res.status(200).json({
+    success: true,
+
+    authorization_url: data.data.authorization_url,
+
+    access_code: data.data.access_code,
+
+    reference: data.data.reference,
+  });
 });
 
 // ✅ Verify transaction
-export const verifyPayment = handleAsyncError(async (req, res) => {
+export const verifyPayment = handleAsyncError(async (req, res, next) => {
   const { reference } = req.params;
 
-  console.log("🔐 Verifying payment with reference:", reference);
+  //
+  // Find payment
+  //
+  const payment = await Payment.findOne({ reference });
 
-  try {
-    // Verify payment with Paystack
-    const response = await axios.get(
-      `https://api.paystack.co/transaction/verify/${reference}`,
-      {
-        headers: { Authorization: `Bearer ${PAYSTACK_SECRET}` },
-      }
-    );
+  if (!payment) {
+    return next(new HandleError("Payment record not found.", 404));
+  }
 
-    const data = response.data.data;
-
-    console.log("📊 Paystack verification response:", {
-      status: data.status,
-      reference: data.reference,
-      amount: data.amount,
-    });
-
-    if (data.status !== "success") {
-      return res.status(400).json({
-        success: false,
-        message: "Payment verification failed",
-      });
-    }
-
-    // ✅ JUST VERIFY PAYMENT - DON'T CREATE ORDER HERE
-    // The order should already be created by createNewOrder
-
-    res.status(200).json({
+  //
+  // Idempotency
+  //
+  if (payment.status === "paid") {
+    return res.status(200).json({
       success: true,
-      message: "Payment verified successfully",
-      paymentData: {
-        id: data.reference,
-        status: data.status,
-        amount: data.amount,
-        paidAt: data.paid_at,
-      },
-    });
-  } catch (error) {
-    console.error("❌ Payment verification error:", error);
-    return res.status(400).json({
-      success: false,
-      message: "Payment verification failed",
+      message: "Payment already verified.",
     });
   }
+
+  //
+  // Verify with Paystack
+  //
+  const { data } = await axios.get(
+    `https://api.paystack.co/transaction/verify/${reference}`,
+    {
+      headers: {
+        Authorization: `Bearer ${PAYSTACK_SECRET}`,
+      },
+    },
+  );
+
+  const transaction = data.data;
+
+  if (transaction.status !== "success") {
+    payment.status = "failed";
+    await payment.save();
+
+    return next(new HandleError("Payment verification failed.", 400));
+  }
+
+  //
+  // Update payment
+  //
+  payment.status = "paid";
+  payment.paidAt = new Date(transaction.paid_at);
+
+  await payment.save();
+
+  //
+  // Update WooCommerce order
+  //
+  await wc.put(`/orders/${payment.wcOrderId}`, {
+    status: "processing",
+    set_paid: true,
+    transaction_id: reference,
+  });
+
+  //
+  // Clear customer's cart
+  //
+  await deleteCart(payment.customerId);
+
+  return res.status(200).json({
+    success: true,
+    message: "Payment verified successfully.",
+  });
 });
 
 // ✅ Webhook (optional but recommended)
-export const paystackWebhook = handleAsyncError(async (req, res) => {
-  const hash = crypto
-    .createHmac("sha512", PAYSTACK_SECRET)
-    .update(JSON.stringify(req.body))
-    .digest("hex");
+export const paymentWebhook = async (req, res) => {
+  try {
+    //
+    // Verify Paystack Signature
+    //
+    const hash = crypto
+      .createHmac("sha512", PAYSTACK_SECRET)
+      .update(JSON.stringify(req.body))
+      .digest("hex");
 
-  const signature = req.headers["x-paystack-signature"];
-  if (hash !== signature) {
-    return res.status(400).send("Invalid signature");
+    const signature = req.headers["x-paystack-signature"];
+
+    if (hash !== signature) {
+      return res.status(401).send("Invalid signature");
+    }
+
+    //
+    // We only care about successful charges
+    //
+    if (req.body.event !== "charge.success") {
+      return res.status(200).send("Ignored");
+    }
+
+    const transaction = req.body.data;
+
+    const reference = transaction.reference;
+
+    //
+    // Find payment
+    //
+    const payment = await Payment.findOne({ reference });
+
+    if (!payment) {
+      return res.status(404).send("Payment not found");
+    }
+
+    //
+    // Already processed?
+    //
+    if (payment.status === "paid") {
+      return res.status(200).send("Already processed");
+    }
+
+    //
+    // Update Payment
+    //
+    payment.status = "paid";
+    payment.paidAt = new Date(transaction.paid_at);
+
+    await payment.save();
+
+    //
+    // Update WooCommerce Order
+    //
+    await wc.put(`/orders/${payment.wcOrderId}`, {
+      status: "processing",
+      set_paid: true,
+      transaction_id: reference,
+    });
+
+    //
+    // Clear Cart
+    //
+    await deleteCart(payment.customerId);
+
+    return res.status(200).send("OK");
+  } catch (error) {
+    console.error("Webhook Error:", error);
+
+    return res.status(500).send("Webhook Failed");
   }
-
-  const event = req.body.event;
-  if (event === "charge.success") {
-    const data = req.body.data;
-    console.log("Payment Success:", data.reference);
-    // Update your DB payment status here
-  }
-
-  res.status(200).send("OK");
-});
+};

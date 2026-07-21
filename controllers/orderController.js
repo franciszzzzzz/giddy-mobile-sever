@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import orderModel from "../models/orderModel.js";
 import productModel from "../models/productModel.js";
 import HandleError from "../utils/handleError.js";
@@ -5,6 +6,7 @@ import handleAsyncError from "../middleware/handleAsyncError.js";
 import { calculateShipping } from "../utils/shipping.js";
 import { wc, wp } from "../config/db.js";
 import { getCartByCustomer } from "../utils/cartService.js";
+import Payment from "../models/paymentModel.js";
 
 export const createNewOrder = handleAsyncError(async (req, res, next) => {
   const { shippingInfo } = req.body;
@@ -87,12 +89,26 @@ export const createNewOrder = handleAsyncError(async (req, res, next) => {
       },
     ],
   });
+  const idempotencyKey = crypto.randomUUID();
+  await Payment.create({
+    customerId: req.user.id,
 
+    wcOrderId: response.data.id,
+
+    amount: Number(response.data.total),
+
+    idempotencyKey,
+
+    status: "pending",
+
+    paymentMethod: "paystack",
+  });
   return res.status(201).json({
     success: true,
     message: "Order created successfully.",
     shippingPrice,
     taxPrice,
+    idempotencyKey,
     order: response.data,
   });
 });

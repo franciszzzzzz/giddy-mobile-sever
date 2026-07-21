@@ -8,13 +8,13 @@ import { verifyUserAuth } from "../middleware/userAuth.js";
 
 const router = express.Router();
 
-router.route("/payment/process").post(verifyUserAuth, initializePayment);
+router.route("/payment/initialize").post(verifyUserAuth, initializePayment);
 router.route("/payment/verify/:reference").get(verifyUserAuth, verifyPayment);
 router
   .route("/webhook")
   .post(
     express.json({ verify: (req, res, buf) => (req.rawBody = buf) }),
-    paystackWebhook
+    paystackWebhook,
   );
 
 export default router;
