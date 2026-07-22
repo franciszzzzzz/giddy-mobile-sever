@@ -228,15 +228,6 @@ export const updateOrderStatus = handleAsyncError(async (req, res, next) => {
   });
 });
 
-async function updateQuantity(id, quantity) {
-  const product = await productModel.findById(id);
-  if (!product) {
-    throw new Error("Product Not Found");
-  }
-  product.stock -= quantity;
-  await product.save({ validateBeforeSave: false });
-}
-
 // Deleting Order
 export const deleteOrder = handleAsyncError(async (req, res, next) => {
   const order = await orderModel.findById(req.params.id);
