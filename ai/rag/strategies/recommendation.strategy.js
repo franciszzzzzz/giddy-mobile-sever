@@ -3,13 +3,15 @@ import formatter from "../productFormatter.js";
 
 async function execute(intent) {
   const products = await aiProductService.findProducts({
-    search: intent.query,
+    search: intent.productType,
 
-    brand: intent.brand,
+    brand: intent.brand?.id,
 
-    minPrice: intent.minPrice,
+    gender: intent.gender,
 
-    maxPrice: intent.maxPrice,
+    occasion: intent.occasion,
+
+    note: intent.note,
 
     stockStatus: "instock",
   });

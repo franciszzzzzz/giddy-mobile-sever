@@ -57,6 +57,17 @@ const IGNORED_TAGS = [
   "diffuser",
 ];
 
+/**
+ * Checks if any word inside a dictionary array exists in the message
+ * using strict regex word boundaries (\b).
+ */
+function matchWordWithBoundaries(wordsArray, targetText) {
+  return wordsArray.some((word) => {
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`\\b${escaped}\\b`, "i").test(targetText);
+  });
+}
+
 export default async function extractEntities(message) {
   const text = message.toLowerCase();
 
@@ -98,7 +109,7 @@ export default async function extractEntities(message) {
   //
 
   for (const [type, words] of Object.entries(PRODUCT_TYPES)) {
-    if (words.some((word) => text.includes(word))) {
+    if (matchWordWithBoundaries(words, text)) {
       entities.productType = type;
       break;
     }
@@ -111,7 +122,7 @@ export default async function extractEntities(message) {
   //
 
   for (const [gender, words] of Object.entries(genders)) {
-    if (words.some((word) => text.includes(word))) {
+    if (matchWordWithBoundaries(words, text)) {
       entities.gender = gender;
       break;
     }
@@ -124,7 +135,7 @@ export default async function extractEntities(message) {
   //
 
   for (const [occasion, words] of Object.entries(occasions)) {
-    if (words.some((word) => text.includes(word))) {
+    if (matchWordWithBoundaries(words, text)) {
       entities.occasion = occasion;
       break;
     }
@@ -137,7 +148,7 @@ export default async function extractEntities(message) {
   //
 
   for (const [note, words] of Object.entries(fragranceNotes)) {
-    if (words.some((word) => text.includes(word))) {
+    if (matchWordWithBoundaries(words, text)) {
       entities.note = note;
       break;
     }
