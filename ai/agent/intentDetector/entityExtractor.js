@@ -4,6 +4,27 @@ import genders from "../dictionaries/genders.js";
 import occasions from "../dictionaries/occasions.js";
 import fragranceNotes from "../dictionaries/fragranceNotes.js";
 
+const IGNORED_TAGS = [
+  "perfume",
+  "fragrance",
+  "gift",
+  "men",
+  "women",
+  "kids",
+  "body spray",
+  "body mist",
+  "rollon",
+  "rollons",
+  "hair",
+  "shampoo",
+  "conditioner",
+  "leave-in conditioner",
+  "deep conditioner",
+  "perfume oil",
+  "scented candle",
+  "diffuser",
+];
+
 export default async function extractEntities(message) {
   const text = message.toLowerCase();
 
@@ -15,19 +36,24 @@ export default async function extractEntities(message) {
   };
 
   //
-  // Dynamic Brands
+  // Dynamic WooCommerce Tags
   //
   const brands = await brandDictionary.getBrands();
 
-  for (const brand of brands) {
-    if (
-      text.includes(brand.name.toLowerCase()) ||
-      text.includes(brand.slug.toLowerCase())
-    ) {
-      entities.brand = brand;
-      break;
-    }
-  }
+  const matches = brands
+    .filter((brand) => {
+      const name = brand.name.toLowerCase();
+      const slug = brand.slug.toLowerCase();
+
+      if (IGNORED_TAGS.includes(name)) {
+        return false;
+      }
+
+      return text.includes(name) || text.includes(slug);
+    })
+    .sort((a, b) => b.name.length - a.name.length);
+
+  entities.brand = matches[0] || null;
 
   //
   // Gender

@@ -60,23 +60,66 @@ export default function buildPrompt({
 
   /**
    * ---------------------------------------------------
+   * Compress Retrieved Products
+   * ---------------------------------------------------
+   */
+
+  const promptProducts = (context.products || [])
+    .sort((a, b) => {
+      if (a.inStock === b.inStock) return 0;
+      return a.inStock ? -1 : 1;
+    })
+    .slice(0, 10)
+    .map((product) => ({
+      name: product.name,
+      brand: product.brand,
+      categories: product.categories,
+      price: product.price,
+      stock: product.inStock ? "In Stock" : "Out of Stock",
+      permalink: product.permalink,
+    }));
+
+  /**
+   * ---------------------------------------------------
    * Retrieved Context
    * ---------------------------------------------------
    */
 
-  if (context && Object.keys(context).length > 0) {
+  if (promptProducts.length > 0) {
     messages.push({
       role: "system",
       content: `
-The following information was retrieved from the official Giddy & Claire catalogue.
+The following products were retrieved directly from the official Giddy & Claire catalogue.
 
-Use ONLY this information when answering product-related questions.
+This catalogue is the source of truth.
 
-If the requested product is not present below, politely say you could not find it.
+Detected Intent:
+${intent.type}
 
-Retrieved Context:
+Detected Brand:
+${intent.brand?.name || "None"}
 
-${JSON.stringify(context, null, 2)}
+Detected Gender:
+${intent.gender || "None"}
+
+Detected Occasion:
+${intent.occasion || "None"}
+
+Detected Fragrance Note:
+${intent.note || "None"}
+
+Instructions:
+
+- Use ONLY these retrieved products.
+- Never invent products.
+- Never invent prices.
+- Never invent stock status.
+- Filter the list according to what the user asked.
+- If no products match, politely explain that nothing matching was found.
+
+Retrieved Products:
+
+${JSON.stringify(promptProducts, null, 2)}
 `,
     });
   }

@@ -21,12 +21,39 @@ export default function classifyIntent(message) {
     return INTENTS.PRODUCT_RECOMMENDATION;
   }
 
-  if (educationTopics.some((word) => text.includes(word))) {
-    return INTENTS.EDUCATION;
+  // Shopping/search requests
+  const shoppingWords = [
+    "show",
+    "find",
+    "search",
+    "looking for",
+    "i want",
+    "need",
+    "browse",
+    "see",
+    "buy",
+    "have",
+  ];
+
+  if (shoppingWords.some((word) => text.includes(word))) {
+    return INTENTS.PRODUCT_SEARCH;
+  }
+
+  // Education only when the user is asking to learn
+  if (
+    educationTopics.some((word) => text.includes(word)) &&
+    (text.includes("what is") ||
+      text.includes("what are") ||
+      text.includes("how") ||
+      text.includes("why") ||
+      text.includes("difference") ||
+      text.includes("explain"))
+  ) {
+    return INTENTS.FRAGRANCE_EDUCATION;
   }
 
   if (storeTopics.some((word) => text.includes(word))) {
-    return INTENTS.STORE_SUPPORT;
+    return INTENTS.STORE_INFORMATION;
   }
 
   return INTENTS.PRODUCT_SEARCH;

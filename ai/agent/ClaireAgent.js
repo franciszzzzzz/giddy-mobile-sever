@@ -17,10 +17,11 @@ class ClaireAgent {
       // 1. Detect intent
       //
       const intent = await detectIntent(message);
-
-      logger.info({
-        intent,
-      });
+      console.log("DETECTED INTENT:");
+      console.dir(intent, { depth: null });
+      console.log("\n================ DETECTED INTENT ================");
+      console.dir(intent, { depth: null });
+      console.log("================================================\n");
 
       //
       // 2. Retrieve product/store context
@@ -29,8 +30,9 @@ class ClaireAgent {
 
       logger.info({
         retrievalSource: context.source,
-      });
 
+        products: context.products?.length || 0,
+      });
       //
       // 3. Build LLM prompt
       //

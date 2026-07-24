@@ -1,17 +1,14 @@
 import strategies from "./strategies/index.js";
-
 import logger from "../../utils/logger.js";
 
 /**
- * Retrieves product context based on the detected intent.
- *
- * Each strategy is responsible for talking to WooCommerce.
- * RetrievalService simply routes the request.
+ * Retrieves context for Claire.
  */
 export async function retrieveContext(intent) {
   try {
     const strategy = strategies[intent.type];
-
+    console.log("INTENT TYPE:", intent.type);
+    console.log("STRATEGY:", strategies[intent.type]);
     if (!strategy) {
       logger.warn({
         intent: intent.type,
@@ -19,29 +16,37 @@ export async function retrieveContext(intent) {
       });
 
       return {
-        success: true,
+        source: null,
 
-        context: null,
+        products: [],
+
+        product: null,
+
+        brands: [],
+
+        categories: [],
       };
     }
 
-    const context = await strategy.execute(intent);
-
-    return {
-      success: true,
-
-      context,
-    };
+    return await strategy.execute(intent);
   } catch (error) {
     logger.error({
-      error: error.message,
-      stack: error.stack,
       intent: intent.type,
       message: "Retrieval failed.",
+      error: error.message,
+      stack: error.stack,
     });
 
     return {
-      success: false,
+      source: "error",
+
+      products: [],
+
+      product: null,
+
+      brands: [],
+
+      categories: [],
 
       error: error.message,
     };
