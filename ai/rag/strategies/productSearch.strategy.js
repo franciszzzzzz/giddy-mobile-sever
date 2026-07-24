@@ -1,46 +1,51 @@
 import aiProductService from "../../../services/aiProduct.service.js";
 import formatter from "../productFormatter.js";
+import productTypes from "../../agent/dictionaries/productTypes.js";
+
+function detectRequestedType(query = "") {
+  const text = query.toLowerCase();
+
+  for (const aliases of Object.values(productTypes)) {
+    const match = aliases.find((alias) => text.includes(alias));
+
+    if (match) {
+      return match;
+    }
+  }
+
+  return null;
+}
 
 function filterProducts(products, intent) {
   let filtered = [...products];
 
   //
-  // Filter by gender
+  // Gender
   //
   if (intent.gender) {
     filtered = filtered.filter((product) =>
       product.categories?.some((category) =>
-        category.name.toLowerCase().includes(intent.gender.toLowerCase()),
+        category.toLowerCase().includes(intent.gender.toLowerCase()),
       ),
     );
   }
 
   //
-  // Detect requested product type from the user's query.
+  // Product Type
   //
-  const query = (intent.query || "").toLowerCase();
-
-  const productTypes = [
-    "perfume",
-    "body mist",
-    "body spray",
-    "antiperspirant",
-    "fragrance oil",
-    "reed diffuser",
-    "candle",
-  ];
-
-  const requestedType = productTypes.find((type) => query.includes(type));
+  const requestedType = detectRequestedType(intent.query);
 
   if (requestedType) {
     filtered = filtered.filter((product) => {
-      const text = (
-        product.name +
-        " " +
-        product.categories.map((c) => c.name).join(" ")
-      ).toLowerCase();
+      const searchable = [
+        product.name,
+        ...(product.categories || []),
+        product.brand || "",
+      ]
+        .join(" ")
+        .toLowerCase();
 
-      return text.includes(requestedType);
+      return searchable.includes(requestedType);
     });
   }
 
@@ -68,7 +73,7 @@ async function execute(intent) {
   }
 
   //
-  // Filter products before sending to the LLM
+  // Filter
   //
   products = filterProducts(products, intent);
 

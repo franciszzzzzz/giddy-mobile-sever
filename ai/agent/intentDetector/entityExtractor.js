@@ -4,6 +4,38 @@ import genders from "../dictionaries/genders.js";
 import occasions from "../dictionaries/occasions.js";
 import fragranceNotes from "../dictionaries/fragranceNotes.js";
 
+const PRODUCT_TYPES = {
+  perfume: ["perfume", "perfumes"],
+
+  body_mist: ["body mist", "body mists", "mist", "mists"],
+
+  body_spray: ["body spray", "body sprays"],
+
+  perfume_oil: ["perfume oil", "perfume oils", "oil", "oils"],
+
+  deodorant: [
+    "deodorant",
+    "deodorants",
+    "roll on",
+    "roll-on",
+    "rollon",
+    "roll ons",
+  ],
+
+  shampoo: ["shampoo", "shampoos"],
+
+  conditioner: [
+    "conditioner",
+    "conditioners",
+    "leave in conditioner",
+    "deep conditioner",
+  ],
+
+  candle: ["candle", "candles", "scented candle", "scented candles"],
+
+  diffuser: ["diffuser", "diffusers"],
+};
+
 const IGNORED_TAGS = [
   "perfume",
   "fragrance",
@@ -33,11 +65,15 @@ export default async function extractEntities(message) {
     gender: null,
     occasion: null,
     note: null,
+    productType: null,
   };
 
   //
-  // Dynamic WooCommerce Tags
+  // -------------------------
+  // Brand
+  // -------------------------
   //
+
   const brands = await brandDictionary.getBrands();
 
   const matches = brands
@@ -56,8 +92,24 @@ export default async function extractEntities(message) {
   entities.brand = matches[0] || null;
 
   //
-  // Gender
+  // -------------------------
+  // Product Type
+  // -------------------------
   //
+
+  for (const [type, words] of Object.entries(PRODUCT_TYPES)) {
+    if (words.some((word) => text.includes(word))) {
+      entities.productType = type;
+      break;
+    }
+  }
+
+  //
+  // -------------------------
+  // Gender
+  // -------------------------
+  //
+
   for (const [gender, words] of Object.entries(genders)) {
     if (words.some((word) => text.includes(word))) {
       entities.gender = gender;
@@ -66,8 +118,11 @@ export default async function extractEntities(message) {
   }
 
   //
+  // -------------------------
   // Occasion
+  // -------------------------
   //
+
   for (const [occasion, words] of Object.entries(occasions)) {
     if (words.some((word) => text.includes(word))) {
       entities.occasion = occasion;
@@ -76,8 +131,11 @@ export default async function extractEntities(message) {
   }
 
   //
-  // Fragrance Notes
+  // -------------------------
+  // Notes
+  // -------------------------
   //
+
   for (const [note, words] of Object.entries(fragranceNotes)) {
     if (words.some((word) => text.includes(word))) {
       entities.note = note;
