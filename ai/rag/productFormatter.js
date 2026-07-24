@@ -7,6 +7,12 @@ import logger from "../../utils/logger.js";
 export function formatProduct(product) {
   if (!product) return null;
 
+  const image = product.images?.find((img) => img?.src)?.src ?? null;
+
+  if (!image) {
+    logger.warn(`Product ${product.id} has no image.`);
+  }
+
   return {
     id: product.id,
 
@@ -14,17 +20,29 @@ export function formatProduct(product) {
 
     sku: product.sku || null,
 
+    image,
+
+    images:
+      product.images?.map((img) => ({
+        id: img.id,
+        src: img.src,
+        thumbnail: img.thumbnail,
+        alt: img.alt,
+      })) || [],
+
     price: product.price || null,
 
     regularPrice: product.regular_price || null,
 
     salePrice: product.sale_price || null,
 
-    currency: product.currency || null,
+    currency: product.currency || "₦",
 
     stockStatus: product.stock_status || "unknown",
 
     inStock: product.stock_status === "instock",
+
+    stockQuantity: product.stock_quantity,
 
     brand: product.tags?.map((tag) => tag.name).join(", ") || null,
 
@@ -34,7 +52,7 @@ export function formatProduct(product) {
 
     description: cleanText(product.description),
 
-    averageRating: product.average_rating || null,
+    averageRating: Number(product.average_rating || 0),
 
     reviewCount: product.rating_count || 0,
 
@@ -46,7 +64,7 @@ export function formatProduct(product) {
  * Formats multiple products.
  */
 export function formatProducts(products = []) {
-  return products.map(formatProduct);
+  return products.map(formatProduct).filter(Boolean);
 }
 
 /**
