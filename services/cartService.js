@@ -1,6 +1,6 @@
 import ShoppingCart from "../models/ShoppingCart.js";
 import { wc } from "../config/db.js";
-import HandleError from "./handleError.js";
+import HandleError from "../utils/handleError.js";
 
 /*
 |--------------------------------------------------------------------------

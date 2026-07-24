@@ -16,7 +16,7 @@ import {
   findCartItem,
   getCartCount,
   createSnapshotItem,
-} from "../utils/cartService.js";
+} from "../services/cartService.js";
 
 export const addToCart = handleAsyncError(async (req, res, next) => {
   const customerId = req.user.id;

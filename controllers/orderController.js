@@ -3,9 +3,9 @@ import orderModel from "../models/orderModel.js";
 import productModel from "../models/productModel.js";
 import HandleError from "../utils/handleError.js";
 import handleAsyncError from "../middleware/handleAsyncError.js";
-import { calculateShipping } from "../utils/shipping.js";
+import { calculateShipping } from "../services/shipping.js";
 import { wc, wp } from "../config/db.js";
-import { getCartByCustomer } from "../utils/cartService.js";
+import { getCartByCustomer } from "../services/cartService.js";
 import Payment from "../models/paymentModel.js";
 
 export const createNewOrder = handleAsyncError(async (req, res, next) => {

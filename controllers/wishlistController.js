@@ -8,7 +8,7 @@ import {
   getWishlistByCustomer,
   getWishlistCount,
   refreshWishlistSnapshot,
-} from "../utils/wishlistService.js";
+} from "../services/wishlistService.js";
 
 export const addToWishlist = handleAsyncError(async (req, res, next) => {
   const customerId = req.user.id;

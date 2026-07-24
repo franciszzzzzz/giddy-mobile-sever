@@ -1,4 +1,4 @@
-import HandleError from "./handleError.js";
+import HandleError from "../utils/handleError.js";
 
 const SOUTH_WEST_STATES = ["lagos", "ogun", "oyo", "osun", "ondo", "ekiti"];
 

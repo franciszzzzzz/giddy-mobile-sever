@@ -2,7 +2,7 @@
 import axios from "axios";
 import Payment from "../models/paymentModel.js";
 import { wc } from "../config/db.js";
-import { deleteCart } from "../utils/cartService.js";
+import { deleteCart } from "../services/cartService.js";
 import HandleError from "../utils/handleError.js";
 import handleAsyncError from "../middleware/handleAsyncError.js";
 

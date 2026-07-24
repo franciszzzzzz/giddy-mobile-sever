@@ -54,35 +54,35 @@ router
 router.route("/review").put(verifyUserAuth, createReviewForProduct);
 router.route("/review/:id").delete(verifyUserAuth, deleteReviewsForProduct);
 
-// Admin routes
-router
-  .route("/admin/products")
-  .get(verifyUserAuth, roleBasedAccess("admin"), getAdminProduct);
-
-router
-  .route("/admin/product/create")
-  .post(
-    verifyUserAuth,
-    roleBasedAccess("admin"),
-    upload.array("image", 5),
-    createProducts,
-  );
-
-router
-  .route("/admin/product/:id")
-  .put(
-    verifyUserAuth,
-    roleBasedAccess("admin"),
-    upload.array("image", 5),
-    updateProduct,
-  )
-  .delete(verifyUserAuth, roleBasedAccess("admin"), deleteProduct);
-
-router
-  .route("/admin/reviews")
-  .get(verifyUserAuth, roleBasedAccess("admin"), gettingReviewsForProduct)
-  .delete(verifyUserAuth, roleBasedAccess("admin"), deleteReviewsForProduct);
-
 router.route("/products/luxury-brands").get(getLuxuryBrands);
 router.route("/products/popular-products").get(getPopularProducts);
+// Admin routes
+// router
+//   .route("/admin/products")
+//   .get(verifyUserAuth, roleBasedAccess("admin"), getAdminProduct);
+
+// router
+//   .route("/admin/product/create")
+//   .post(
+//     verifyUserAuth,
+//     roleBasedAccess("admin"),
+//     upload.array("image", 5),
+//     createProducts,
+//   );
+
+// router
+//   .route("/admin/product/:id")
+//   .put(
+//     verifyUserAuth,
+//     roleBasedAccess("admin"),
+//     upload.array("image", 5),
+//     updateProduct,
+//   )
+//   .delete(verifyUserAuth, roleBasedAccess("admin"), deleteProduct);
+
+// router
+//   .route("/admin/reviews")
+//   .get(verifyUserAuth, roleBasedAccess("admin"), gettingReviewsForProduct)
+//   .delete(verifyUserAuth, roleBasedAccess("admin"), deleteReviewsForProduct);
+
 export default router;

@@ -1,0 +1,15 @@
+export default [
+  "recommend",
+  "recommendation",
+  "suggest",
+  "suggestion",
+  "looking for",
+  "need",
+  "want",
+  "which perfume",
+  "what perfume",
+  "best perfume",
+  "help me choose",
+  "good perfume",
+  "buy",
+];
