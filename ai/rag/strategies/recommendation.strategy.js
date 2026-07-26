@@ -1,30 +1,24 @@
 import aiProductService from "../../../services/aiProduct.service.js";
+import { buildFilters } from "../productFilterBuilder.js";
+import { rankProducts } from "../productRanker.js";
 import formatter from "../productFormatter.js";
 
 async function execute(intent) {
-  const products = await aiProductService.findProducts({
-    search: intent.productType,
+  // Build WooCommerce filters
+  const filters = await buildFilters(intent);
 
-    brand: intent.brand?.id,
+  // Retrieve products
+  let products = await aiProductService.findProducts(filters);
 
-    gender: intent.gender,
+  // Rank them according to the user's intent
+  products = rankProducts(products, intent);
 
-    occasion: intent.occasion,
-
-    note: intent.note,
-
-    stockStatus: "instock",
-  });
-
+  // Return only the top results
   return {
     source: "recommendation",
-
-    products: formatter.formatProducts(products),
-
+    products: formatter.formatProducts(products.slice(0, 10)),
     product: null,
-
     brands: [],
-
     categories: [],
   };
 }
