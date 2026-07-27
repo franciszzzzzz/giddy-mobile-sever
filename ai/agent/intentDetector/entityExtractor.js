@@ -1,5 +1,5 @@
 import brandDictionary from "../dynamic/brands.js";
-
+import Fuse from "fuse.js";
 import genders from "../dictionaries/genders.js";
 import occasions from "../dictionaries/occasions.js";
 import fragranceNotes from "../dictionaries/fragranceNotes.js";
@@ -84,23 +84,46 @@ export default async function extractEntities(message) {
   // Brand
   // -------------------------
   //
-
   const brands = await brandDictionary.getBrands();
 
-  const matches = brands
-    .filter((brand) => {
-      const name = brand.name.toLowerCase();
-      const slug = brand.slug.toLowerCase();
+  const searchableBrands = brands.filter((brand) => {
+    return !IGNORED_TAGS.includes(brand.name.toLowerCase());
+  });
 
-      if (IGNORED_TAGS.includes(name)) {
-        return false;
-      }
+  // ----------
+  // Exact Match
+  // ----------
 
-      return text.includes(name) || text.includes(slug);
-    })
-    .sort((a, b) => b.name.length - a.name.length);
+  let matchedBrand =
+    searchableBrands
+      .filter((brand) => {
+        const name = brand.name.toLowerCase();
+        const slug = brand.slug.toLowerCase();
 
-  entities.brand = matches[0] || null;
+        return text.includes(name) || text.includes(slug);
+      })
+      .sort((a, b) => b.name.length - a.name.length)[0] || null;
+
+  // ----------
+  // Fuzzy Match
+  // ----------
+
+  if (!matchedBrand) {
+    const fuse = new Fuse(searchableBrands, {
+      keys: ["name", "slug"],
+      threshold: 0.3,
+      ignoreLocation: true,
+      minMatchCharLength: 3,
+    });
+
+    const result = fuse.search(message);
+
+    if (result.length) {
+      matchedBrand = result[0].item;
+    }
+  }
+
+  entities.brand = matchedBrand;
 
   //
   // -------------------------

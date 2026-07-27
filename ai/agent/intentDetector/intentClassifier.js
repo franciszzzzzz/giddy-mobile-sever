@@ -12,9 +12,12 @@ export default function classifyIntent(message) {
   //
   // Greeting
   //
+  const firstWord = words[0] ?? "";
+
   const isGreeting =
-    greetings.some((greeting) => words.includes(greeting)) ||
-    greetings.some((greeting) => text === greeting);
+    greetings.includes(firstWord) ||
+    greetings.some((greeting) => text.startsWith(`${greeting} `)) ||
+    greetings.includes(text);
 
   if (isGreeting) {
     return INTENTS.GREETING;
