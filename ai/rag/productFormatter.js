@@ -53,11 +53,11 @@ export function formatProduct(product) {
       })) || [],
 
     // AI receives nicely formatted prices
-    price: formatPrice(product.price),
+    price: product.price || null,
 
-    regularPrice: formatPrice(product.regular_price),
+    regularPrice: product.regular_price || null,
 
-    salePrice: formatPrice(product.sale_price),
+    salePrice: product.sale_price || null,
 
     currency: "₦",
 
