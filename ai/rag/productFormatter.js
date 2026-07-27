@@ -1,6 +1,28 @@
 import logger from "../../utils/logger.js";
 
 /**
+ * Formats a WooCommerce price into Nigerian Naira.
+ * Example:
+ * "12500" -> "₦12,500"
+ * "12500.50" -> "₦12,500.50"
+ */
+function formatPrice(price) {
+  if (
+    price === null ||
+    price === undefined ||
+    price === "" ||
+    Number.isNaN(Number(price))
+  ) {
+    return null;
+  }
+
+  return `₦${Number(price).toLocaleString("en-NG", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+/**
  * Converts a single WooCommerce product into
  * a concise AI-friendly object.
  */
@@ -30,13 +52,14 @@ export function formatProduct(product) {
         alt: img.alt,
       })) || [],
 
-    price: product.price || null,
+    // AI receives nicely formatted prices
+    price: formatPrice(product.price),
 
-    regularPrice: product.regular_price || null,
+    regularPrice: formatPrice(product.regular_price),
 
-    salePrice: product.sale_price || null,
+    salePrice: formatPrice(product.sale_price),
 
-    currency: product.currency || "₦",
+    currency: "₦",
 
     stockStatus: product.stock_status || "unknown",
 
