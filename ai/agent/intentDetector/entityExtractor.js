@@ -1,5 +1,7 @@
-import brandDictionary from "../dynamic/brands.js";
 import Fuse from "fuse.js";
+
+import brandDictionary from "../dynamic/brands.js";
+
 import genders from "../dictionaries/genders.js";
 import occasions from "../dictionaries/occasions.js";
 import fragranceNotes from "../dictionaries/fragranceNotes.js";
@@ -57,15 +59,68 @@ const IGNORED_TAGS = [
   "diffuser",
 ];
 
-/**
- * Checks if any word inside a dictionary array exists in the message
- * using strict regex word boundaries (\b).
- */
+const STOP_WORDS = [
+  "show",
+  "find",
+  "search",
+  "looking",
+  "look",
+  "for",
+  "i",
+  "want",
+  "need",
+  "buy",
+  "have",
+  "recommend",
+  "recommended",
+  "best",
+  "top",
+  "cheap",
+  "expensive",
+  "good",
+  "give",
+  "me",
+  "please",
+  "women",
+  "woman",
+  "female",
+  "ladies",
+  "men",
+  "man",
+  "male",
+  "perfume",
+  "perfumes",
+  "mist",
+  "mists",
+  "body",
+  "spray",
+  "sprays",
+  "oil",
+  "oils",
+  "diffuser",
+  "diffusers",
+  "candle",
+  "candles",
+  "scented",
+  "rollon",
+  "roll-ons",
+];
+
 function matchWordWithBoundaries(wordsArray, targetText) {
   return wordsArray.some((word) => {
     const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
     return new RegExp(`\\b${escaped}\\b`, "i").test(targetText);
   });
+}
+
+function extractPossibleBrandPhrase(message) {
+  return message
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, " ")
+    .split(/\s+/)
+    .filter((word) => word && !STOP_WORDS.includes(word))
+    .join(" ");
 }
 
 export default async function extractEntities(message) {
@@ -84,15 +139,12 @@ export default async function extractEntities(message) {
   // Brand
   // -------------------------
   //
+
   const brands = await brandDictionary.getBrands();
 
-  const searchableBrands = brands.filter((brand) => {
-    return !IGNORED_TAGS.includes(brand.name.toLowerCase());
-  });
-
-  // ----------
-  // Exact Match
-  // ----------
+  const searchableBrands = brands.filter(
+    (brand) => !IGNORED_TAGS.includes(brand.name.toLowerCase()),
+  );
 
   let matchedBrand =
     searchableBrands
@@ -104,22 +156,22 @@ export default async function extractEntities(message) {
       })
       .sort((a, b) => b.name.length - a.name.length)[0] || null;
 
-  // ----------
-  // Fuzzy Match
-  // ----------
-
   if (!matchedBrand) {
-    const fuse = new Fuse(searchableBrands, {
-      keys: ["name", "slug"],
-      threshold: 0.3,
-      ignoreLocation: true,
-      minMatchCharLength: 3,
-    });
+    const candidate = extractPossibleBrandPhrase(message);
 
-    const result = fuse.search(message);
+    if (candidate.length >= 3) {
+      const fuse = new Fuse(searchableBrands, {
+        keys: ["name", "slug"],
+        threshold: 0.3,
+        ignoreLocation: true,
+        minMatchCharLength: 3,
+      });
 
-    if (result.length) {
-      matchedBrand = result[0].item;
+      const result = fuse.search(candidate);
+
+      if (result.length) {
+        matchedBrand = result[0].item;
+      }
     }
   }
 
