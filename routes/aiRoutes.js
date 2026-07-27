@@ -1,6 +1,10 @@
 import express from "express";
 
-import { chatWithClaire, aiHealth } from "../controllers/aiController.js";
+import {
+  chatWithClaire,
+  aiHealth,
+  flushRedis,
+} from "../controllers/aiController.js";
 
 import { verifyUserAuth } from "../middleware/userAuth.js";
 
@@ -18,5 +22,6 @@ router.get("/ai/health", aiHealth);
  * to the logged in customer.
  */
 router.post("/ai/chat", verifyUserAuth, chatWithClaire);
+router.post("/redis/flush", flushRedis);
 
 export default router;

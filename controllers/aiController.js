@@ -3,6 +3,7 @@ import HandleError from "../utils/handleError.js";
 import handleAsyncError from "../middleware/handleAsyncError.js";
 import logger from "../utils/logger.js";
 import providers from "../ai/llm/providers/index.js";
+import redisClient from "../config/redis.js";
 
 /**
  * POST /api/v1/ai/chat
@@ -76,3 +77,18 @@ export const aiHealth = handleAsyncError(async (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+/**
+ * /redis/flush
+ *
+ * Simple endpoint used to flush redis keys
+ */
+
+export const flushRedis = async (req, res) => {
+  await redisClient.flushAll();
+
+  return res.status(200).json({
+    success: true,
+    message: "Redis cache cleared.",
+  });
+};
