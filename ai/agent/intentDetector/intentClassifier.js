@@ -6,29 +6,22 @@ import comparisonWords from "../dictionaries/comparisonWords.js";
 import educationTopics from "../dictionaries/educationTopics.js";
 import storeTopics from "../dictionaries/storeTopics.js";
 
+import fuzzyMatch from "./fuzzyDictionaryMatcher.js";
+
 export default function classifyIntent(message) {
   const text = message.toLowerCase().trim();
-  const words = text.match(/\b[\w']+\b/g) || [];
+
   //
   // Greeting
   //
-  const firstWord = words[0] ?? "";
-
-  const isGreeting =
-    greetings.includes(firstWord) ||
-    greetings.some((greeting) => text.startsWith(`${greeting} `)) ||
-    greetings.includes(text);
-
-  if (isGreeting) {
+  if (fuzzyMatch(greetings, text) || /\b(hi|hey|hello)\b/.test(text)) {
     return INTENTS.GREETING;
   }
+
   //
   // Recommendation
   //
-  if (
-    recommendationWords.some((word) => text.includes(word)) ||
-    /\bbest\b/.test(text)
-  ) {
+  if (fuzzyMatch(recommendationWords, text) || /\bbest\b/.test(text)) {
     return INTENTS.PRODUCT_RECOMMENDATION;
   }
 
@@ -36,7 +29,7 @@ export default function classifyIntent(message) {
   // Comparison
   //
   const comparisonRequested =
-    comparisonWords.some((word) => text.includes(word)) ||
+    fuzzyMatch(comparisonWords, text) ||
     text.includes("which is better") ||
     text.includes("which one is better");
 
@@ -50,23 +43,21 @@ export default function classifyIntent(message) {
   }
 
   //
-  // Shopping/Search
+  // Shopping
   //
   const shoppingWords = [
     "show",
     "find",
     "search",
     "looking for",
-    "i want",
-    "need",
     "browse",
-    "see",
     "buy",
+    "need",
     "have",
     "similar",
   ];
 
-  if (shoppingWords.some((word) => text.includes(word))) {
+  if (fuzzyMatch(shoppingWords, text)) {
     return INTENTS.PRODUCT_SEARCH;
   }
 
@@ -74,9 +65,8 @@ export default function classifyIntent(message) {
   // Education
   //
   if (
-    educationTopics.some((word) => text.includes(word)) &&
-    (text.includes("what is") ||
-      text.includes("what are") ||
+    fuzzyMatch(educationTopics, text) &&
+    (text.includes("what") ||
       text.includes("how") ||
       text.includes("why") ||
       text.includes("difference") ||
@@ -86,9 +76,9 @@ export default function classifyIntent(message) {
   }
 
   //
-  // Store Information
+  // Store info
   //
-  if (storeTopics.some((word) => text.includes(word))) {
+  if (fuzzyMatch(storeTopics, text)) {
     return INTENTS.STORE_INFORMATION;
   }
 
