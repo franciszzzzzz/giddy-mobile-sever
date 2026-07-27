@@ -3,6 +3,29 @@
 import aiProductService from "../../services/aiProduct.service.js";
 
 /**
+ * Maps Claire product types to WooCommerce search terms.
+ */
+const PRODUCT_TYPE_SEARCH = {
+  perfume: "perfume",
+
+  body_mist: "body mist",
+
+  body_spray: "body spray",
+
+  perfume_oil: "perfume oil",
+
+  deodorant: "deodorant",
+
+  candle: "candle",
+
+  diffuser: "diffuser",
+
+  shampoo: "shampoo",
+
+  conditioner: "conditioner",
+};
+
+/**
  * Converts an AI intent into WooCommerce filters.
  */
 export async function buildFilters(intent) {
@@ -12,67 +35,42 @@ export async function buildFilters(intent) {
   };
 
   //
-  // -------------------------
+  // --------------------------------------------------
   // Brand
-  // -------------------------
+  // --------------------------------------------------
   //
-  if (intent.brand) {
+  if (intent.brand?.id) {
     filters.brand = intent.brand.id;
   }
 
   //
-  // -------------------------
+  // --------------------------------------------------
   // Product Type
-  // -------------------------
+  // --------------------------------------------------
   //
   if (intent.productType) {
-    switch (intent.productType) {
-      case "perfume":
-        filters.search = "perfume";
-        break;
+    const search = PRODUCT_TYPE_SEARCH[intent.productType];
 
-      case "body_mist":
-        filters.search = "body mist";
-        break;
-
-      case "body_spray":
-        filters.search = "body spray";
-        break;
-
-      case "perfume_oil":
-        filters.search = "perfume oil";
-        break;
-
-      case "deodorant":
-        filters.search = "deodorant";
-        break;
-
-      case "candle":
-        filters.search = "candle";
-        break;
-
-      case "diffuser":
-        filters.search = "diffuser";
-        break;
-
-      default:
-        break;
+    if (search) {
+      filters.search = search;
     }
   }
 
   //
-  // -------------------------
+  // --------------------------------------------------
   // Gender
-  // -------------------------
+  // --------------------------------------------------
   //
   if (intent.gender) {
     const categories = await aiProductService.getCategories();
 
-    const match = categories.find(
-      (category) =>
-        category.slug.toLowerCase() === intent.gender.toLowerCase() ||
-        category.name.toLowerCase() === intent.gender.toLowerCase(),
-    );
+    const match = categories.find((category) => {
+      const slug = category.slug.toLowerCase();
+      const name = category.name.toLowerCase();
+      const gender = intent.gender.toLowerCase();
+
+      return slug === gender || name === gender;
+    });
 
     if (match) {
       filters.category = match.id;
@@ -80,10 +78,15 @@ export async function buildFilters(intent) {
   }
 
   //
-  // Future:
-  // Occasion
-  // Fragrance Notes
-  // Price Range
+  // --------------------------------------------------
+  // Future Filters
+  // --------------------------------------------------
+  //
+  // intent.occasion
+  // intent.note
+  // intent.priceRange
+  // intent.rating
+  // intent.inStock
   //
 
   return filters;

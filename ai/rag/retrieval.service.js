@@ -6,9 +6,36 @@ import logger from "../../utils/logger.js";
  */
 export async function retrieveContext(intent) {
   try {
+    //
+    // --------------------------------------------------
+    // If memory has already resolved a specific product,
+    // return it immediately.
+    // --------------------------------------------------
+    //
+    if (intent.product) {
+      return {
+        source: "memory",
+
+        products: [intent.product],
+
+        product: intent.product,
+
+        brands: intent.product.brand ? [intent.product.brand] : [],
+
+        categories: intent.product.categories || [],
+      };
+    }
+
+    //
+    // --------------------------------------------------
+    // Otherwise use the normal retrieval strategy.
+    // --------------------------------------------------
+    //
     const strategy = strategies[intent.type];
+
     console.log("INTENT TYPE:", intent.type);
-    console.log("STRATEGY:", strategies[intent.type]);
+    console.log("STRATEGY:", strategy);
+
     if (!strategy) {
       logger.warn({
         intent: intent.type,

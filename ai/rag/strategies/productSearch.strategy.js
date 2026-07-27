@@ -20,32 +20,49 @@ function filterProducts(products, intent) {
   let filtered = [...products];
 
   //
+  // -------------------------
+  // Brand
+  // -------------------------
+  //
+  if (intent.brand) {
+    const brandName = intent.brand.name.toLowerCase();
+
+    filtered = filtered.filter((product) =>
+      (product.tags || []).some((tag) => tag.name.toLowerCase() === brandName),
+    );
+  }
+
+  //
+  // -------------------------
   // Gender
+  // -------------------------
   //
   if (intent.gender) {
     filtered = filtered.filter((product) =>
       product.categories?.some((category) =>
-        category.toLowerCase().includes(intent.gender.toLowerCase()),
+        category.name.toLowerCase().includes(intent.gender.toLowerCase()),
       ),
     );
   }
 
   //
+  // -------------------------
   // Product Type
+  // -------------------------
   //
-  const requestedType = detectRequestedType(intent.query);
+  const requestedType = intent.productType || detectRequestedType(intent.query);
 
   if (requestedType) {
     filtered = filtered.filter((product) => {
       const searchable = [
         product.name,
-        ...(product.categories || []),
-        product.brand || "",
+        ...(product.categories?.map((c) => c.name) || []),
+        ...(product.tags?.map((t) => t.name) || []),
       ]
         .join(" ")
         .toLowerCase();
 
-      return searchable.includes(requestedType);
+      return searchable.includes(requestedType.replace("_", " "));
     });
   }
 
@@ -55,37 +72,24 @@ function filterProducts(products, intent) {
 async function execute(intent) {
   let products = [];
 
-  //
-  // Brand search
-  //
   if (intent.brand) {
     products = await aiProductService.findProducts({
       brand: intent.brand.id,
       limit: 50,
     });
   } else {
-    //
-    // Keyword search
-    //
     products = await aiProductService.searchProducts(intent.query, {
       limit: 50,
     });
   }
 
-  //
-  // Filter
-  //
   products = filterProducts(products, intent);
 
   return {
     source: "product_search",
-
     products: formatter.formatProducts(products),
-
     product: null,
-
     brands: [],
-
     categories: [],
   };
 }

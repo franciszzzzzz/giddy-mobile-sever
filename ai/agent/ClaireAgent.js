@@ -7,30 +7,48 @@ import buildResponse from "./responseBuilder.js";
 import aiCache from "../cache/aiCache.service.js";
 import { buildCacheKey } from "../cache/cacheKeyBuilder.js";
 
+import conversationMemory from "../memory/conversationMemory.js";
+import resolveIntentWithMemory from "../memory/memoryResolver.js";
+
 import logger from "../../utils/logger.js";
 
 class ClaireAgent {
   /**
    * Main entry point.
    */
-  async chat({ message, history = [], user = null }) {
+  async chat({ message, history = [], user = null, sessionId = "anonymous" }) {
     try {
       logger.info("Claire conversation started.");
 
       //
+      // --------------------------------------------------
       // 1. Detect intent
+      // --------------------------------------------------
       //
-      const intent = await detectIntent(message);
-
-      console.log("DETECTED INTENT:");
-      console.dir(intent, { depth: null });
+      const detectedIntent = await detectIntent(message);
 
       console.log("\n================ DETECTED INTENT ================");
-      console.dir(intent, { depth: null });
+      console.dir(detectedIntent, { depth: null });
       console.log("================================================\n");
 
       //
-      // 2. Retrieve product/store context
+      // --------------------------------------------------
+      // 2. Load memory
+      // --------------------------------------------------
+      //
+      const memory = conversationMemory.getConversation(sessionId);
+
+      const intent = resolveIntentWithMemory(detectedIntent, memory);
+
+      logger.info({
+        message: "Resolved intent",
+        intent,
+      });
+
+      //
+      // --------------------------------------------------
+      // 3. Retrieve context
+      // --------------------------------------------------
       //
       const context = await retrievalService.retrieveContext(intent);
 
@@ -40,13 +58,12 @@ class ClaireAgent {
       });
 
       //
-      // 3. Build cache key
+      // --------------------------------------------------
+      // 4. Cache
+      // --------------------------------------------------
       //
       const cacheKey = buildCacheKey(intent);
 
-      //
-      // 4. Check Redis cache
-      //
       const cached = await aiCache.get(cacheKey);
 
       if (cached) {
@@ -55,11 +72,21 @@ class ClaireAgent {
           cacheKey,
         });
 
+        conversationMemory.updateConversation(sessionId, {
+          intent,
+          entities: intent,
+          context,
+          userMessage: message,
+          assistantMessage: cached.message,
+        });
+
         return cached;
       }
 
       //
-      // 5. Build prompt
+      // --------------------------------------------------
+      // 5. Prompt
+      // --------------------------------------------------
       //
       const messages = buildPrompt({
         userMessage: message,
@@ -69,7 +96,9 @@ class ClaireAgent {
       });
 
       //
-      // 6. Generate AI response
+      // --------------------------------------------------
+      // 6. AI
+      // --------------------------------------------------
       //
       const result = await generate({
         messages,
@@ -83,7 +112,9 @@ class ClaireAgent {
       }
 
       //
-      // 7. Build frontend response
+      // --------------------------------------------------
+      // 7. Response
+      // --------------------------------------------------
       //
       const response = buildResponse({
         intent,
@@ -92,9 +123,29 @@ class ClaireAgent {
       });
 
       //
-      // 8. Store in Redis
+      // --------------------------------------------------
+      // 8. Cache
+      // --------------------------------------------------
       //
       await aiCache.set(cacheKey, response);
+
+      //
+      // --------------------------------------------------
+      // 9. Update memory
+      // --------------------------------------------------
+      //
+      conversationMemory.updateConversation(sessionId, {
+        intent,
+        entities: intent,
+        context,
+        userMessage: message,
+        assistantMessage: response.message,
+      });
+
+      logger.info({
+        message: "Conversation memory updated.",
+        sessionId,
+      });
 
       return response;
     } catch (error) {
@@ -102,7 +153,6 @@ class ClaireAgent {
 
       return {
         success: false,
-
         error: {
           message: "Claire couldn't process your request.",
         },
