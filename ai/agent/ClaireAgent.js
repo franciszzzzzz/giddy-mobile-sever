@@ -3,6 +3,10 @@ import retrievalService from "../rag/retrieval.service.js";
 import buildPrompt from "../prompts/promptBuilder.js";
 import { generate } from "../llm/modelRouter.js";
 import buildResponse from "./responseBuilder.js";
+
+import aiCache from "../cache/aiCache.service.js";
+import { buildCacheKey } from "../cache/cacheKeyBuilder.js";
+
 import logger from "../../utils/logger.js";
 
 class ClaireAgent {
@@ -17,8 +21,10 @@ class ClaireAgent {
       // 1. Detect intent
       //
       const intent = await detectIntent(message);
+
       console.log("DETECTED INTENT:");
       console.dir(intent, { depth: null });
+
       console.log("\n================ DETECTED INTENT ================");
       console.dir(intent, { depth: null });
       console.log("================================================\n");
@@ -30,11 +36,30 @@ class ClaireAgent {
 
       logger.info({
         retrievalSource: context.source,
-
         products: context.products?.length || 0,
       });
+
       //
-      // 3. Build LLM prompt
+      // 3. Build cache key
+      //
+      const cacheKey = buildCacheKey(intent);
+
+      //
+      // 4. Check Redis cache
+      //
+      const cached = await aiCache.get(cacheKey);
+
+      if (cached) {
+        logger.info({
+          message: "Returning cached AI response.",
+          cacheKey,
+        });
+
+        return cached;
+      }
+
+      //
+      // 5. Build prompt
       //
       const messages = buildPrompt({
         userMessage: message,
@@ -44,7 +69,7 @@ class ClaireAgent {
       });
 
       //
-      // 4. Generate AI response
+      // 6. Generate AI response
       //
       const result = await generate({
         messages,
@@ -58,13 +83,20 @@ class ClaireAgent {
       }
 
       //
-      // 5. Build frontend response
+      // 7. Build frontend response
       //
-      return buildResponse({
+      const response = buildResponse({
         intent,
         context,
         ai: result,
       });
+
+      //
+      // 8. Store in Redis
+      //
+      await aiCache.set(cacheKey, response);
+
+      return response;
     } catch (error) {
       logger.error(error);
 
