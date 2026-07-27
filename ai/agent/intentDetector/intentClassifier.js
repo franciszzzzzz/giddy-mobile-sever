@@ -8,14 +8,17 @@ import storeTopics from "../dictionaries/storeTopics.js";
 
 export default function classifyIntent(message) {
   const text = message.toLowerCase().trim();
-
+  const words = text.match(/\b[\w']+\b/g) || [];
   //
   // Greeting
   //
-  if (greetings.some((word) => text.includes(word))) {
+  const isGreeting =
+    greetings.some((greeting) => words.includes(greeting)) ||
+    greetings.some((greeting) => text === greeting);
+
+  if (isGreeting) {
     return INTENTS.GREETING;
   }
-
   //
   // Recommendation
   //
