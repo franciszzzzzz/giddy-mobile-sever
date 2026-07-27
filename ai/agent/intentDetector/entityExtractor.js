@@ -106,6 +106,18 @@ const STOP_WORDS = [
   "roll-ons",
 ];
 
+const EXCLUDE_PATTERNS = [
+  "not",
+  "except",
+  "excluding",
+  "without",
+  "anything but",
+  "other than",
+  "don't show",
+  "dont show",
+  "exclude",
+];
+
 function matchWordWithBoundaries(wordsArray, targetText) {
   return wordsArray.some((word) => {
     const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -123,11 +135,22 @@ function extractPossibleBrandPhrase(message) {
     .join(" ");
 }
 
+function isExcludedBrand(message, brand) {
+  const text = message.toLowerCase();
+
+  const brandNames = [brand.name.toLowerCase(), brand.slug.toLowerCase()];
+
+  return EXCLUDE_PATTERNS.some((pattern) =>
+    brandNames.some((name) => text.includes(`${pattern} ${name}`)),
+  );
+}
+
 export default async function extractEntities(message) {
   const text = message.toLowerCase();
 
   const entities = {
     brand: null,
+    excludeBrand: null,
     gender: null,
     occasion: null,
     note: null,
@@ -175,7 +198,13 @@ export default async function extractEntities(message) {
     }
   }
 
-  entities.brand = matchedBrand;
+  if (matchedBrand) {
+    if (isExcludedBrand(message, matchedBrand)) {
+      entities.excludeBrand = matchedBrand;
+    } else {
+      entities.brand = matchedBrand;
+    }
+  }
 
   //
   // -------------------------

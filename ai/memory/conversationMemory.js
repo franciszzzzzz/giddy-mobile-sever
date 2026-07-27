@@ -2,10 +2,14 @@ import memoryStore from "./memoryStore.js";
 
 function createEmptyMemory() {
   return {
+    //
     // Intent
+    //
     lastIntent: null,
 
+    //
     // Entities
+    //
     lastBrand: null,
     lastCategory: null,
     lastProductType: null,
@@ -13,12 +17,16 @@ function createEmptyMemory() {
     lastOccasion: null,
     lastNote: null,
 
-    // Product memory
+    //
+    // Product Memory
+    //
     lastProducts: [],
     lastProduct: null,
     lastComparison: [],
 
+    //
     // Conversation
+    //
     history: [],
   };
 }
@@ -34,17 +42,17 @@ export function updateConversation(
   const memory = getConversation(sessionId);
 
   //
-  // -------------------------
+  // --------------------------------------------------
   // Intent
-  // -------------------------
+  // --------------------------------------------------
   //
 
   memory.lastIntent = intent?.type || memory.lastIntent;
 
   //
-  // -------------------------
+  // --------------------------------------------------
   // Entities
-  // -------------------------
+  // --------------------------------------------------
   //
 
   if (entities?.brand) {
@@ -68,34 +76,43 @@ export function updateConversation(
   }
 
   //
-  // -------------------------
+  // --------------------------------------------------
   // Retrieved Products
-  // -------------------------
+  // --------------------------------------------------
   //
 
   if (context?.products?.length) {
     memory.lastProducts = context.products;
 
-    // Remember the first product by default.
-    // Later we'll update this when the user says
-    // "tell me about the third one".
-    memory.lastProduct = context.products[0];
+    // Don't overwrite an already selected product.
+    if (!memory.lastProduct) {
+      memory.lastProduct = context.products[0];
+    }
   }
 
   //
-  // -------------------------
+  // If a follow-up resolved to a specific product
+  // ("the second one", "the cheapest", etc.)
+  // remember that product.
+  //
+  if (intent?.product) {
+    memory.lastProduct = intent.product;
+  }
+
+  //
+  // --------------------------------------------------
   // Comparison Memory
-  // -------------------------
+  // --------------------------------------------------
   //
 
-  if (context?.products?.length >= 2 && intent?.type === "PRODUCT_COMPARISON") {
+  if (intent?.type === "PRODUCT_COMPARISON" && context?.products?.length >= 2) {
     memory.lastComparison = context.products;
   }
 
   //
-  // -------------------------
+  // --------------------------------------------------
   // Conversation History
-  // -------------------------
+  // --------------------------------------------------
   //
 
   memory.history.push({
@@ -104,7 +121,7 @@ export function updateConversation(
     timestamp: Date.now(),
   });
 
-  // Keep only the most recent 10 exchanges.
+  // Keep only the latest 10 exchanges.
   if (memory.history.length > 10) {
     memory.history.shift();
   }
