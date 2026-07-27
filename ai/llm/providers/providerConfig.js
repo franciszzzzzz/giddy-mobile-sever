@@ -1,9 +1,9 @@
 import { PROVIDERS } from "../../constants/models.js";
 
 export const PROVIDER_CONFIG = {
-  [PROVIDERS.OPENROUTER]: {
-    baseURL: "https://openrouter.ai/api/v1",
-    apiKey: process.env.OPENROUTER_API_KEY,
+  [PROVIDERS.DEEPSEEK]: {
+    baseURL: "https://api.deepseek.com",
+    apiKey: process.env.DEEPSEEK_API_KEY,
   },
 
   [PROVIDERS.GROQ]: {

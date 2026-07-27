@@ -8,8 +8,8 @@ if (!process.env.OPENROUTER_API_KEY) {
 const config = {
   providerPriority: [
     {
-      provider: PROVIDERS.GROQ,
-      model: MODELS.LLAMA_70B,
+      provider: PROVIDERS.DEEPSEEK,
+      model: MODELS.DEEPSEEK_CHAT,
       priority: 1,
       enabled: true,
     },
@@ -22,8 +22,8 @@ const config = {
     },
 
     {
-      provider: PROVIDERS.OPENROUTER,
-      model: MODELS.OPENROUTER_FREE,
+      provider: PROVIDERS.GROQ,
+      model: MODELS.LLAMA_70B,
       priority: 3,
       enabled: true,
     },

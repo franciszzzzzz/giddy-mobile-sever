@@ -1,13 +1,14 @@
 export const PROVIDERS = {
-  GROQ: "groq",
+  DEEPSEEK: "deepseek",
   GEMINI: "gemini",
+  GROQ: "groq",
   OPENROUTER: "openrouter",
 };
 
 export const MODELS = {
-  LLAMA_70B: "llama-3.3-70b-versatile",
+  DEEPSEEK_CHAT: "deepseek-v4-flash",
 
   GEMINI_FLASH: "gemini-2.5-flash",
 
-  OPENROUTER_FREE: "openrouter/free",
+  LLAMA_70B: "llama-3.3-70b-versatile",
 };
