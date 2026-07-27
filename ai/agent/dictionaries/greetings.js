@@ -10,4 +10,5 @@ export default [
   "hiya",
   "what's up",
   "sup",
+  "Claire",
 ];
