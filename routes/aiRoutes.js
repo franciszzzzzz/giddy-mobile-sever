@@ -17,6 +17,6 @@ router.get("/ai/health", aiHealth);
  * Protected because we want access
  * to the logged in customer.
  */
-router.post("/ai/chat", chatWithClaire);
+router.post("/ai/chat", verifyUserAuth, chatWithClaire);
 
 export default router;
