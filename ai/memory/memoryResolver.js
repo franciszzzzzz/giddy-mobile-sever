@@ -9,37 +9,11 @@ function findReferencedProduct(query, products = []) {
 
   const text = query.toLowerCase();
 
-  //
-  // -------------------------
-  // Ordinals
-  // -------------------------
-  //
-
-  if (text.includes("first")) {
-    return products[0] || null;
-  }
-
-  if (text.includes("second")) {
-    return products[1] || null;
-  }
-
-  if (text.includes("third")) {
-    return products[2] || null;
-  }
-
-  if (text.includes("fourth")) {
-    return products[3] || null;
-  }
-
-  if (text.includes("last")) {
-    return products[products.length - 1] || null;
-  }
-
-  //
-  // -------------------------
-  // Cheapest
-  // -------------------------
-  //
+  if (text.includes("first")) return products[0] || null;
+  if (text.includes("second")) return products[1] || null;
+  if (text.includes("third")) return products[2] || null;
+  if (text.includes("fourth")) return products[3] || null;
+  if (text.includes("last")) return products[products.length - 1] || null;
 
   if (
     text.includes("cheapest") ||
@@ -50,12 +24,6 @@ function findReferencedProduct(query, products = []) {
       (a, b) => Number(a.price || 0) - Number(b.price || 0),
     )[0];
   }
-
-  //
-  // -------------------------
-  // Most expensive
-  // -------------------------
-  //
 
   if (
     text.includes("most expensive") ||
@@ -80,65 +48,46 @@ export default function resolveIntentWithMemory(intent, memory) {
   };
 
   //
-  // -------------------------
-  // Restore previous brand
-  // -------------------------
+  // Only FOLLOW_UP intents inherit previous context.
   //
+  if (resolved.type === "FOLLOW_UP") {
+    if (!hasValue(resolved.brand) && memory.lastBrand) {
+      resolved.brand = memory.lastBrand;
+    }
 
-  if (!hasValue(resolved.brand) && memory.lastBrand) {
-    resolved.brand = memory.lastBrand;
+    if (!hasValue(resolved.productType) && memory.lastProductType) {
+      resolved.productType = memory.lastProductType;
+    }
+
+    if (!hasValue(resolved.gender) && memory.lastGender) {
+      resolved.gender = memory.lastGender;
+    }
+
+    if (!hasValue(resolved.note) && memory.lastNote) {
+      resolved.note = memory.lastNote;
+    }
+
+    if (!hasValue(resolved.occasion) && memory.lastOccasion) {
+      resolved.occasion = memory.lastOccasion;
+    }
+
+    resolved.previousProducts = memory.lastProducts || [];
+
+    resolved.previousProduct = memory.lastProduct || null;
   }
 
   //
-  // -------------------------
-  // Restore product type
-  // -------------------------
+  // Resolve things like:
+  // "the first one"
+  // "the cheapest"
+  // "the last one"
   //
+  const products =
+    resolved.previousProducts?.length > 0
+      ? resolved.previousProducts
+      : memory.lastProducts;
 
-  if (!hasValue(resolved.productType) && memory.lastProductType) {
-    resolved.productType = memory.lastProductType;
-  }
-
-  //
-  // -------------------------
-  // Restore gender
-  // -------------------------
-  //
-
-  if (!hasValue(resolved.gender) && memory.lastGender) {
-    resolved.gender = memory.lastGender;
-  }
-
-  //
-  // -------------------------
-  // Restore note
-  // -------------------------
-  //
-
-  if (!hasValue(resolved.note) && memory.lastNote) {
-    resolved.note = memory.lastNote;
-  }
-
-  //
-  // -------------------------
-  // Restore occasion
-  // -------------------------
-  //
-
-  if (!hasValue(resolved.occasion) && memory.lastOccasion) {
-    resolved.occasion = memory.lastOccasion;
-  }
-
-  //
-  // -------------------------
-  // Resolve referenced product
-  // -------------------------
-  //
-
-  const referencedProduct = findReferencedProduct(
-    resolved.query,
-    memory.lastProducts,
-  );
+  const referencedProduct = findReferencedProduct(resolved.query, products);
 
   if (referencedProduct) {
     resolved.product = referencedProduct;

@@ -8,6 +8,7 @@ import featured from "./featured.strategy.js";
 import productOfWeek from "./productOfWeek.strategy.js";
 import brands from "./brands.strategy.js";
 import categories from "./categories.strategy.js";
+import followUpStrategy from "./followUp.strategy.js";
 
 import { INTENTS } from "../../constants/intents.js";
 
@@ -31,4 +32,6 @@ export default {
   [INTENTS.BRANDS]: brands,
 
   [INTENTS.CATEGORIES]: categories,
+
+  [INTENTS.FOLLOW_UP]: followUpStrategy,
 };

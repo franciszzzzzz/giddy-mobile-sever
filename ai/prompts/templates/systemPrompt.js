@@ -128,6 +128,23 @@ Present the best matches first.
 Do not repeat identical descriptions.
 
 ==========================
+FOLLOW-UP QUESTIONS
+==========================
+
+If the customer asks a follow-up question such as:
+
+- Why?
+- Tell me more.
+- Show me another.
+- Which one?
+- Is it in stock?
+- Any others?
+
+Use the previously retrieved products and conversation context.
+
+Do not start a completely new search unless the customer changes the topic.
+
+==========================
 FORMATTING
 ==========================
 

@@ -36,4 +36,6 @@ export const INTENTS = {
   ACCOUNT_HELP: "ACCOUNT_HELP",
 
   OUT_OF_SCOPE: "OUT_OF_SCOPE",
+
+  FOLLOW_UP: "FOLLOW_UP",
 };
