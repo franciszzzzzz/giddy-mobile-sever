@@ -7,21 +7,45 @@ import educationTopics from "../dictionaries/educationTopics.js";
 import storeTopics from "../dictionaries/storeTopics.js";
 
 export default function classifyIntent(message) {
-  const text = message.toLowerCase();
+  const text = message.toLowerCase().trim();
 
+  //
+  // Greeting
+  //
   if (greetings.some((word) => text.includes(word))) {
     return INTENTS.GREETING;
   }
 
-  if (comparisonWords.some((word) => text.includes(word))) {
-    return INTENTS.PRODUCT_COMPARISON;
-  }
-
-  if (recommendationWords.some((word) => text.includes(word))) {
+  //
+  // Recommendation
+  //
+  if (
+    recommendationWords.some((word) => text.includes(word)) ||
+    /\bbest\b/.test(text)
+  ) {
     return INTENTS.PRODUCT_RECOMMENDATION;
   }
 
-  // Shopping/search requests
+  //
+  // Comparison
+  //
+  const comparisonRequested =
+    comparisonWords.some((word) => text.includes(word)) ||
+    text.includes("which is better") ||
+    text.includes("which one is better");
+
+  const comparisonSeparators =
+    text.includes(" vs ") ||
+    text.includes(" versus ") ||
+    text.includes(" and ");
+
+  if (comparisonRequested && comparisonSeparators) {
+    return INTENTS.PRODUCT_COMPARISON;
+  }
+
+  //
+  // Shopping/Search
+  //
   const shoppingWords = [
     "show",
     "find",
@@ -33,13 +57,16 @@ export default function classifyIntent(message) {
     "see",
     "buy",
     "have",
+    "similar",
   ];
 
   if (shoppingWords.some((word) => text.includes(word))) {
     return INTENTS.PRODUCT_SEARCH;
   }
 
-  // Education only when the user is asking to learn
+  //
+  // Education
+  //
   if (
     educationTopics.some((word) => text.includes(word)) &&
     (text.includes("what is") ||
@@ -52,6 +79,9 @@ export default function classifyIntent(message) {
     return INTENTS.FRAGRANCE_EDUCATION;
   }
 
+  //
+  // Store Information
+  //
   if (storeTopics.some((word) => text.includes(word))) {
     return INTENTS.STORE_INFORMATION;
   }

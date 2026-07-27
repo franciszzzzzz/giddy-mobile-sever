@@ -1,4 +1,5 @@
 export default [
+  // --- Original Keywords ---
   "recommend",
   "recommendation",
   "suggest",
@@ -12,4 +13,92 @@ export default [
   "help me choose",
   "good perfume",
   "buy",
+
+  // --- Purchase & Shopping Intent ---
+  "purchase",
+  "order",
+  "shop",
+  "browse",
+  "find a scent",
+  "pick a scent",
+  "where can i get",
+  "add to cart",
+  "price of",
+  "how much is",
+
+  // --- Explicit Perfume & Fragrance Terms ---
+  "perfume",
+  "cologne",
+  "fragrance",
+  "scent",
+  "eau de parfum",
+  "edp",
+  "eau de toilette",
+  "edt",
+  "aftershave",
+  "parfum",
+  "mist",
+  "spray",
+
+  // --- Gifting Intent ---
+  "gift for",
+  "present for",
+  "for my wife",
+  "for my husband",
+  "for my boyfriend",
+  "for my girlfriend",
+  "birthday gift ideas",
+
+  // --- Desired Profiles & Notes ---
+  "smell like",
+  "smells like",
+  "scent notes",
+  "vanilla",
+  "floral",
+  "woody",
+  "citrus",
+  "fresh",
+  "sweet",
+  "musk",
+  "spicy",
+  "oud",
+
+  // --- Quality & Longevity Queries ---
+  "long lasting",
+  "lasts all day",
+  "strong scent",
+  "beast mode",
+  "projection",
+  "sillage",
+  "high quality",
+  "authentic",
+
+  // --- Occasion & Season Specific ---
+  "everyday wear",
+  "signature scent",
+  "date night",
+  "wedding perfume",
+  "for summer",
+  "for winter",
+  "office safe",
+  "work perfume",
+
+  // --- Target Demographics ---
+  "for men",
+  "for women",
+  "unisex",
+  "gender neutral",
+  "masculine",
+  "feminine",
+
+  // --- Budget & Luxury Categories ---
+  "affordable",
+  "cheap",
+  "budget",
+  "luxury",
+  "designer",
+  "niche",
+  "dupe",
+  "clone",
+  "blind buy",
 ];
