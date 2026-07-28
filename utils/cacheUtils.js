@@ -122,6 +122,6 @@ export const CACHE_TTL = {
   REVIEWS: 10 * 60, // 10 minutes
   REFRESH_TOKEN: 7 * 24 * 60 * 60,
   FEATURED_PRODUCTS: 30 * 60,
-  PRODUCT_OF_THE_WEEK: 24 * 60 * 60, // a day
+  PRODUCT_OF_THE_WEEK: 6 * 60 * 60, // 6 hrs
   WP_TOKEN: 24 * 60 * 60, // 24 hours
 };

@@ -1,7 +1,7 @@
 import Fuse from "fuse.js";
 
 import brandDictionary from "../dynamic/brands.js";
-
+import categoryGroups from "../dictionaries/categoryGroups.js";
 import genders from "../dictionaries/genders.js";
 import occasions from "../dictionaries/occasions.js";
 import fragranceNotes from "../dictionaries/fragranceNotes.js";
@@ -103,24 +103,19 @@ export default async function extractEntities(message) {
 
   const entities = {
     brand: null,
+
     excludeBrand: null,
+
     gender: null,
+
     occasion: null,
+
     note: null,
+
     productType: null,
 
-    recipient: null,
-
-    budget: null,
-
-    minPrice: null,
-    maxPrice: null,
-
-    product: null,
-
-    comparisonProducts: [],
+    categoryGroup: null,
   };
-
   //
   // -------------------------
   // Brands
@@ -153,6 +148,23 @@ export default async function extractEntities(message) {
   for (const [type, aliases] of Object.entries(PRODUCT_TYPES)) {
     if (contains(aliases, text)) {
       entities.productType = type;
+      break;
+    }
+  }
+
+  //
+  // -------------------------
+  // Category Group
+  // -------------------------
+  //
+
+  for (const [group, words] of Object.entries(categoryGroups)) {
+    if (matchWordWithBoundaries(words, text)) {
+      entities.categoryGroup = {
+        slug: group,
+        name: group.replace(/-/g, " "),
+      };
+
       break;
     }
   }

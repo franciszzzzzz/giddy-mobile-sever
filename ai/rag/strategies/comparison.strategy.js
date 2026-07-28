@@ -1,28 +1,58 @@
-import aiProductService from "../../../services/aiProduct.service.js";
 import formatter from "../productFormatter.js";
+import { retrieveContext } from "../retrieval.service.js";
 
+/**
+ * Product Comparison Strategy
+ *
+ * Retrieves products using the shared RAG pipeline.
+ *
+ * Comparison candidates may come from:
+ * - Conversation memory
+ * - Previous recommendations
+ * - Explicit product names
+ * - Search results
+ */
 async function execute(intent) {
-  // Nothing to compare yet
-  if (!Array.isArray(intent.products) || intent.products.length < 2) {
+  const context = await retrieveContext(intent);
+
+  //
+  // --------------------------------------------------
+  // Products already resolved by retrieval/memory
+  // --------------------------------------------------
+  //
+
+  const products = context.products || [];
+
+  //
+  // --------------------------------------------------
+  // Need at least two products to compare
+  // --------------------------------------------------
+  //
+
+  if (products.length < 2) {
     return {
       source: "comparison",
+
       products: [],
+
       product: null,
-      brands: [],
-      categories: [],
+
+      brands: context.brands || [],
+
+      categories: context.categories || [],
     };
   }
 
-  const products = await Promise.all(
-    intent.products.map((id) => aiProductService.getProduct(id)),
-  );
-
   return {
     source: "comparison",
-    products: formatter.formatProducts(products.filter(Boolean)),
+
+    products: formatter.formatProducts(products),
+
     product: null,
-    brands: [],
-    categories: [],
+
+    brands: context.brands || [],
+
+    categories: context.categories || [],
   };
 }
 

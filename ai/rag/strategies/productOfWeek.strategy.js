@@ -1,19 +1,32 @@
-import aiProductService from "../../../services/aiProduct.service.js";
 import formatter from "../productFormatter.js";
+import { retrieveContext } from "../retrieval.service.js";
 
-async function execute() {
-  const product = await aiProductService.getProductOfTheWeek();
+/**
+ * Product of the Week Strategy
+ *
+ * Retrieves the current product of the week
+ * using the shared retrieval pipeline.
+ */
+async function execute(intent) {
+  const context = await retrieveContext({
+    ...intent,
+    productOfWeek: true,
+  });
 
   return {
     source: "product_of_the_week",
 
     products: [],
 
-    product: formatter.formatProduct(product),
+    product: context.product
+      ? formatter.formatProduct(context.product)
+      : context.products?.length
+        ? formatter.formatProduct(context.products[0])
+        : null,
 
-    brands: [],
+    brands: context.brands || [],
 
-    categories: [],
+    categories: context.categories || [],
   };
 }
 

@@ -149,5 +149,5 @@ export default function buildWooFilters(intent = {}) {
     filters.sort = intent.sort;
   }
 
-  return filters;
+  return filters; // someth
 }

@@ -1,18 +1,24 @@
-import aiProductService from "../../../services/aiProduct.service.js";
+import { retrieveContext } from "../retrieval.service.js";
 
-async function execute() {
-  const categories = await aiProductService.getCategories();
+/**
+ * Category Strategy
+ *
+ * Returns category information using the shared
+ * retrieval pipeline.
+ */
+async function execute(intent) {
+  const context = await retrieveContext(intent);
 
   return {
     source: "categories",
 
-    products: [],
+    products: context.products || [],
 
-    product: null,
+    product: context.product || null,
 
-    brands: [],
+    brands: context.brands || [],
 
-    categories,
+    categories: context.categories || [],
   };
 }
 

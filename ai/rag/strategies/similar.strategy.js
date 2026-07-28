@@ -1,19 +1,25 @@
-import aiProductService from "../../../services/aiProduct.service.js";
 import formatter from "../productFormatter.js";
+import { retrieveContext } from "../retrieval.service.js";
 
+/**
+ * Similar Products Strategy
+ *
+ * Retrieves products related to the currently
+ * selected product using the shared retrieval pipeline.
+ */
 async function execute(intent) {
-  const products = await aiProductService.getSimilarProducts(intent.productId);
+  const context = await retrieveContext(intent);
 
   return {
     source: "similar",
 
-    products: formatter.formatProducts(products),
+    products: formatter.formatProducts(context.products || []),
 
-    product: null,
+    product: context.product ? formatter.formatProduct(context.product) : null,
 
-    brands: [],
+    brands: context.brands || [],
 
-    categories: [],
+    categories: context.categories || [],
   };
 }
 

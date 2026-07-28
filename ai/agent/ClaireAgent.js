@@ -3,11 +3,11 @@ import retrievalService from "../rag/retrieval.service.js";
 import buildPrompt from "../prompts/promptBuilder.js";
 import { generate } from "../llm/modelRouter.js";
 import buildResponse from "./responseBuilder.js";
-
-import conversationMemory from "../memory/conversationMemory.js";
 import resolveIntentWithMemory from "../memory/memoryResolver.js";
 
 import logger from "../../utils/logger.js";
+import { updateConversation } from "../memory/updateConversation.js";
+import { getConversation } from "../memory/conversationMemory.js";
 
 class ClaireAgent {
   /**
@@ -33,7 +33,7 @@ class ClaireAgent {
       // 2. Load conversation memory
       // --------------------------------------------------
       //
-      const memory = conversationMemory.getConversation(sessionId);
+      const memory = getConversation(sessionId);
 
       const intent = resolveIntentWithMemory(detectedIntent, memory);
 
@@ -98,7 +98,7 @@ class ClaireAgent {
       // 7. Update conversation memory
       // --------------------------------------------------
       //
-      conversationMemory.updateConversation(sessionId, {
+      updateConversation(sessionId, {
         intent,
         entities: intent,
         context,

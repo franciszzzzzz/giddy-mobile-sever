@@ -1,32 +1,14 @@
-import buildWooFilters from "../helpers/buildWooFilters.js";
-import searchProducts from "./searchProducts.js";
+import aiProductService from "../../../services/aiProduct.service.js";
 
 /**
- * Retrieves all products belonging to a brand.
+ * Retrieves products belonging to a brand.
  *
- * @param {Object} intent
- * @returns {Promise<Array>}
+ * Accepts the entire intent object.
  */
 export default async function searchByBrand(intent = {}) {
-  //
-  // -----------------------------------
-  // No brand?
-  // -----------------------------------
-  //
-  if (!intent.brand) {
+  if (!intent.brand?.name) {
     return [];
   }
 
-  //
-  // -----------------------------------
-  // Build WooCommerce filters
-  // -----------------------------------
-  //
-  const filters = buildWooFilters(intent);
-
-  //
-  // -----------------------------------
-  // Retrieve products
-  // -----------------------------------
-  return await searchProducts(filters);
+  return aiProductService.getProductsByBrand(intent.brand.name);
 }

@@ -1,34 +1,19 @@
-import normalizeSearchTerm from "../helpers/normalizeSearchTerm.js";
-import buildWooFilters from "../helpers/buildWooFilters.js";
-import searchProducts from "./searchProducts.js";
+import aiProductService from "../../../services/aiProduct.service.js";
 
 /**
- * Retrieves products using a keyword search.
+ * Performs a keyword search against WooCommerce.
  *
- * @param {Object} intent
- * @returns {Promise<Array>}
+ * Uses the original user query.
+ *
+ * Accepts the entire intent object.
  */
 export default async function searchByKeyword(intent = {}) {
-  //
-  // -----------------------------------
-  // Normalize the user's search
-  // -----------------------------------
-  //
-  const search = normalizeSearchTerm(intent.query);
+  if (!intent.query?.trim()) {
+    return [];
+  }
 
-  //
-  // -----------------------------------
-  // Build WooCommerce filters
-  // -----------------------------------
-  //
-  const filters = buildWooFilters({
-    ...intent,
-    search,
+  return aiProductService.searchProducts(intent.query, {
+    page: 1,
+    limit: 50,
   });
-
-  //
-  // -----------------------------------
-  // Retrieve products
-  // -----------------------------------
-  return await searchProducts(filters);
 }

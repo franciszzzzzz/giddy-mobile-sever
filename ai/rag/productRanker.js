@@ -1,18 +1,91 @@
 /**
- * Scores and sorts retrieved products according to
- * how well they match the customer's intent.
+ * Product Ranker
+ *
+ * Responsible for scoring and sorting products
+ * according to how well they satisfy the user's intent.
+ *
+ * Retrieval finds products.
+ * Ranking decides which products should appear first.
  */
 
-function scoreProduct(product, intent) {
+const SCORES = {
+  INSTOCK: 100,
+
+  FEATURED: 30,
+
+  ON_SALE: 20,
+
+  BRAND: 80,
+
+  PRODUCT_TYPE: 60,
+
+  GENDER: 40,
+
+  OCCASION: 20,
+
+  NOTE: 20,
+
+  QUERY: 120,
+
+  BUDGET: 50,
+
+  EXCLUDED_BRAND: -1000,
+};
+
+/**
+ * Builds one searchable string from the product.
+ */
+function buildSearchableText(product) {
+  return [
+    product.name,
+
+    ...(product.categories || []).map((c) => c.name),
+
+    ...(product.tags || []).map((t) => t.name),
+
+    product.short_description,
+
+    product.description,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+/**
+ * Checks whether searchable text contains a value.
+ */
+function matches(searchable, value) {
+  if (!value) {
+    return false;
+  }
+
+  return searchable.includes(String(value).toLowerCase());
+}
+
+/**
+ * Placeholder for future personalization.
+ */
+function scorePersonalization() {
+  return 0;
+}
+
+/**
+ * Calculates relevance score for one product.
+ */
+function scoreProduct(product, intent = {}) {
   let score = 0;
+
+  const searchable = buildSearchableText(product);
 
   //
   // -------------------------
-  // In Stock
+  // Stock
   // -------------------------
   //
+
   if (product.stock_status === "instock") {
-    score += 100;
+    score += SCORES.INSTOCK;
   }
 
   //
@@ -20,17 +93,19 @@ function scoreProduct(product, intent) {
   // Featured
   // -------------------------
   //
+
   if (product.featured) {
-    score += 30;
+    score += SCORES.FEATURED;
   }
 
   //
   // -------------------------
-  // On Sale
+  // Sale
   // -------------------------
   //
+
   if (product.on_sale) {
-    score += 20;
+    score += SCORES.ON_SALE;
   }
 
   //
@@ -38,6 +113,7 @@ function scoreProduct(product, intent) {
   // Rating
   // -------------------------
   //
+
   score += Number(product.average_rating || 0) * 5;
 
   //
@@ -45,23 +121,17 @@ function scoreProduct(product, intent) {
   // Sales
   // -------------------------
   //
-  score += Math.min(product.total_sales || 0, 100);
 
-  const searchable = [
-    product.name,
-    ...(product.categories || []).map((c) => c.name),
-    ...(product.tags || []).map((t) => t.name),
-  ]
-    .join(" ")
-    .toLowerCase();
+  score += Math.min(Number(product.total_sales || 0), 100);
 
   //
   // -------------------------
   // Brand
   // -------------------------
   //
-  if (intent.brand && searchable.includes(intent.brand.name.toLowerCase())) {
-    score += 80;
+
+  if (intent.brand && matches(searchable, intent.brand.name)) {
+    score += SCORES.BRAND;
   }
 
   //
@@ -69,11 +139,12 @@ function scoreProduct(product, intent) {
   // Product Type
   // -------------------------
   //
+
   if (
     intent.productType &&
-    searchable.includes(intent.productType.replace("_", " "))
+    matches(searchable, intent.productType.replace(/_/g, " "))
   ) {
-    score += 60;
+    score += SCORES.PRODUCT_TYPE;
   }
 
   //
@@ -81,8 +152,9 @@ function scoreProduct(product, intent) {
   // Gender
   // -------------------------
   //
-  if (intent.gender && searchable.includes(intent.gender)) {
-    score += 40;
+
+  if (intent.gender && matches(searchable, intent.gender)) {
+    score += SCORES.GENDER;
   }
 
   //
@@ -90,8 +162,9 @@ function scoreProduct(product, intent) {
   // Occasion
   // -------------------------
   //
-  if (intent.occasion && searchable.includes(intent.occasion)) {
-    score += 20;
+
+  if (intent.occasion && matches(searchable, intent.occasion)) {
+    score += SCORES.OCCASION;
   }
 
   //
@@ -99,14 +172,63 @@ function scoreProduct(product, intent) {
   // Fragrance Note
   // -------------------------
   //
-  if (intent.note && searchable.includes(intent.note)) {
-    score += 20;
+
+  if (intent.note && matches(searchable, intent.note)) {
+    score += SCORES.NOTE;
   }
+
+  //
+  // -------------------------
+  // Exact Query
+  // -------------------------
+  //
+
+  if (intent.query && matches(searchable, intent.query)) {
+    score += SCORES.QUERY;
+  }
+
+  //
+  // -------------------------
+  // Budget
+  // -------------------------
+  //
+
+  if (intent.maxPrice) {
+    const price = Number(product.price || 0);
+
+    if (price <= intent.maxPrice) {
+      score += SCORES.BUDGET;
+    } else {
+      score -= SCORES.BUDGET;
+    }
+  }
+
+  //
+  // -------------------------
+  // Excluded Brand
+  // -------------------------
+  //
+
+  if (intent.excludeBrand && matches(searchable, intent.excludeBrand.name)) {
+    score += SCORES.EXCLUDED_BRAND;
+  }
+
+  //
+  // -------------------------
+  // Future Personalization
+  // -------------------------
+  //
+
+  score += scorePersonalization(product, intent);
 
   return score;
 }
 
-export function rankProducts(products = [], intent) {
+/**
+ * Ranks products from most relevant
+ * to least relevant.
+ */
+export function rankProducts(products = [], intent = {}) {
   return [...products]
     .map((product) => ({
       product,

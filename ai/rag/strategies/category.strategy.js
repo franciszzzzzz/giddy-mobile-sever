@@ -1,21 +1,25 @@
-import aiProductService from "../../../services/aiProduct.service.js";
 import formatter from "../productFormatter.js";
+import { retrieveContext } from "../retrieval.service.js";
 
+/**
+ * Category Strategy
+ *
+ * Retrieves products belonging to a category or
+ * category group using the shared RAG retrieval layer.
+ */
 async function execute(intent) {
-  const products = await aiProductService.getProductsByCategory(
-    intent.category,
-  );
+  const context = await retrieveContext(intent);
 
   return {
     source: "category",
 
-    products: formatter.formatProducts(products),
+    products: formatter.formatProducts(context.products || []),
 
-    product: null,
+    product: context.product ? formatter.formatProduct(context.product) : null,
 
-    brands: [],
+    brands: context.brands || [],
 
-    categories: [],
+    categories: context.categories || [],
   };
 }
 

@@ -1,85 +1,56 @@
-import strategies from "./strategies/index.js";
-import logger from "../../utils/logger.js";
+import retrieveProducts from "./retrieval/retrieveProducts.js";
+
+import formatter from "./productFormatter.js";
+import { rankProducts } from "./productRanker.js";
 
 /**
- * Retrieves context for Claire.
+ * Claire Retrieval Service
+ *
+ * Single entry point into the RAG retrieval layer.
+ *
+ * Responsibilities:
+ * - retrieve products
+ * - rank them
+ * - format them
  */
-export async function retrieveContext(intent) {
-  try {
-    //
-    // --------------------------------------------------
-    // If memory has already resolved a specific product,
-    // return it immediately.
-    // --------------------------------------------------
-    //
-    if (intent.product) {
-      return {
-        source: "memory",
+export async function retrieve(intent = {}) {
+  //
+  // ----------------------------------------
+  // Retrieve Products
+  // ----------------------------------------
+  //
 
-        products: [intent.product],
+  let products = await retrieveProducts(intent);
 
-        product: intent.product,
+  //
+  // ----------------------------------------
+  // Rank Products
+  // ----------------------------------------
+  //
 
-        brands: intent.product.brand ? [intent.product.brand] : [],
+  products = rankProducts(products, intent);
 
-        categories: intent.product.categories || [],
-      };
-    }
+  //
+  // ----------------------------------------
+  // Format Products
+  // ----------------------------------------
+  //
 
-    //
-    // --------------------------------------------------
-    // Otherwise use the normal retrieval strategy.
-    // --------------------------------------------------
-    //
-    const strategy = strategies[intent.type];
+  const formattedProducts = formatter.formatProducts(products);
 
-    console.log("INTENT TYPE:", intent.type);
-    console.log("STRATEGY:", strategy);
+  return {
+    source: "rag",
 
-    if (!strategy) {
-      logger.warn({
-        intent: intent.type,
-        message: "No retrieval strategy registered.",
-      });
+    products: formattedProducts,
 
-      return {
-        source: null,
+    product: formattedProducts[0] || null,
 
-        products: [],
+    brands: [],
 
-        product: null,
-
-        brands: [],
-
-        categories: [],
-      };
-    }
-
-    return await strategy.execute(intent);
-  } catch (error) {
-    logger.error({
-      intent: intent.type,
-      message: "Retrieval failed.",
-      error: error.message,
-      stack: error.stack,
-    });
-
-    return {
-      source: "error",
-
-      products: [],
-
-      product: null,
-
-      brands: [],
-
-      categories: [],
-
-      error: error.message,
-    };
-  }
+    categories: [],
+  };
 }
 
 export default {
-  retrieveContext,
+  retrieve,
 };

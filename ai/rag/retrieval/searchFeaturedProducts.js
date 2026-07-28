@@ -1,27 +1,15 @@
-import buildWooFilters from "../helpers/buildWooFilters.js";
-import searchProducts from "./searchProducts.js";
+import aiProductService from "../../../services/aiProduct.service.js";
 
 /**
  * Retrieves featured products.
  *
- * @param {Object} intent
- * @returns {Promise<Array>}
+ * Accepts the entire intent object for consistency
+ * with every other retrieval strategy.
  */
 export default async function searchFeaturedProducts(intent = {}) {
-  //
-  // -----------------------------------------
-  // Build filters
-  // -----------------------------------------
-  //
-  const filters = buildWooFilters({
-    ...intent,
-    featured: true,
-  });
+  if (!intent.featured) {
+    return [];
+  }
 
-  //
-  // -----------------------------------------
-  // Retrieve products
-  // -----------------------------------------
-  //
-  return await searchProducts(filters);
+  return aiProductService.getFeaturedProducts(50);
 }

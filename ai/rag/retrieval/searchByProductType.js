@@ -1,40 +1,24 @@
-import buildWooFilters from "../helpers/buildWooFilters.js";
-import searchProducts from "./searchProducts.js";
+import aiProductService from "../../../services/aiProduct.service.js";
 
 /**
- * Retrieves products matching a product type.
+ * Retrieves products belonging to a product type.
  *
  * Examples:
  * - perfume
  * - body_mist
- * - body_spray
  * - perfume_oil
+ * - deodorant
+ * - shampoo
+ * - conditioner
  * - diffuser
  * - candle
  *
- * @param {Object} intent
- * @returns {Promise<Array>}
+ * Accepts the entire intent object.
  */
 export default async function searchByProductType(intent = {}) {
-  //
-  // -----------------------------------
-  // No product type?
-  // -----------------------------------
-  //
   if (!intent.productType) {
     return [];
   }
 
-  //
-  // -----------------------------------
-  // Build WooCommerce filters
-  // -----------------------------------
-  //
-  const filters = buildWooFilters(intent);
-
-  //
-  // -----------------------------------
-  // Retrieve products
-  // -----------------------------------
-  return await searchProducts(filters);
+  return aiProductService.getProductsByProductType(intent.productType);
 }

@@ -1,18 +1,25 @@
-import aiProductService from "../../../services/aiProduct.service.js";
+import formatter from "../productFormatter.js";
+import { retrieveContext } from "../retrieval.service.js";
 
-async function execute() {
-  const brands = await aiProductService.getBrands();
+/**
+ * Brand Strategy
+ *
+ * Retrieves products for a brand using the shared
+ * RAG retrieval pipeline.
+ */
+async function execute(intent) {
+  const context = await retrieveContext(intent);
 
   return {
-    source: "brands",
+    source: "brand",
 
-    products: [],
+    products: formatter.formatProducts(context.products || []),
 
-    product: null,
+    product: context.product ? formatter.formatProduct(context.product) : null,
 
-    brands,
+    brands: context.brands || [],
 
-    categories: [],
+    categories: context.categories || [],
   };
 }
 
