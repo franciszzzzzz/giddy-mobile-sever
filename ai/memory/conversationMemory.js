@@ -11,17 +11,36 @@ function createEmptyMemory() {
     // Entities
     //
     lastBrand: null,
+    lastExcludeBrand: null,
+
     lastCategory: null,
+
     lastProductType: null,
+
     lastGender: null,
+
     lastOccasion: null,
+
     lastNote: null,
+
+    lastRecipient: null,
+
+    //
+    // Budget
+    //
+    lastBudget: null,
+
+    lastMinPrice: null,
+
+    lastMaxPrice: null,
 
     //
     // Product Memory
     //
     lastProducts: [],
+
     lastProduct: null,
+
     lastComparison: [],
 
     //
@@ -42,67 +61,134 @@ export function updateConversation(
   const memory = getConversation(sessionId);
 
   //
-  // --------------------------------------------------
+  // -----------------------------
   // Intent
-  // --------------------------------------------------
+  // -----------------------------
   //
 
-  memory.lastIntent = intent?.type || memory.lastIntent;
+  if (intent?.type) {
+    memory.lastIntent = intent.type;
+  }
 
   //
-  // --------------------------------------------------
-  // Entities
-  // --------------------------------------------------
+  // -----------------------------
+  // Brand
+  // -----------------------------
   //
 
   if (entities?.brand) {
     memory.lastBrand = entities.brand;
   }
 
-  if (entities?.gender) {
-    memory.lastGender = entities.gender;
+  if (entities?.excludeBrand) {
+    memory.lastExcludeBrand = entities.excludeBrand;
   }
+
+  //
+  // -----------------------------
+  // Category
+  // -----------------------------
+  //
+
+  if (entities?.category) {
+    memory.lastCategory = entities.category;
+  }
+
+  //
+  // -----------------------------
+  // Product Type
+  // -----------------------------
+  //
 
   if (entities?.productType) {
     memory.lastProductType = entities.productType;
   }
 
+  //
+  // -----------------------------
+  // Gender
+  // -----------------------------
+  //
+
+  if (entities?.gender) {
+    memory.lastGender = entities.gender;
+  }
+
+  //
+  // -----------------------------
+  // Occasion
+  // -----------------------------
+  //
+
   if (entities?.occasion) {
     memory.lastOccasion = entities.occasion;
   }
+
+  //
+  // -----------------------------
+  // Note
+  // -----------------------------
+  //
 
   if (entities?.note) {
     memory.lastNote = entities.note;
   }
 
   //
-  // --------------------------------------------------
+  // -----------------------------
+  // Recipient
+  // -----------------------------
+  //
+
+  if (entities?.recipient) {
+    memory.lastRecipient = entities.recipient;
+  }
+
+  //
+  // -----------------------------
+  // Budget
+  // -----------------------------
+  //
+
+  if (entities?.budget != null) {
+    memory.lastBudget = entities.budget;
+  }
+
+  if (entities?.minPrice != null) {
+    memory.lastMinPrice = entities.minPrice;
+  }
+
+  if (entities?.maxPrice != null) {
+    memory.lastMaxPrice = entities.maxPrice;
+  }
+
+  //
+  // -----------------------------
   // Retrieved Products
-  // --------------------------------------------------
+  // -----------------------------
   //
 
   if (context?.products?.length) {
     memory.lastProducts = context.products;
 
-    // Don't overwrite an already selected product.
-    if (!memory.lastProduct) {
-      memory.lastProduct = context.products[0];
-    }
+    //
+    // Remember first recommendation
+    //
+    memory.lastProduct = context.products[0];
   }
 
   //
-  // If a follow-up resolved to a specific product
-  // ("the second one", "the cheapest", etc.)
-  // remember that product.
+  // User selected a product
   //
+
   if (intent?.product) {
     memory.lastProduct = intent.product;
   }
 
   //
-  // --------------------------------------------------
-  // Comparison Memory
-  // --------------------------------------------------
+  // -----------------------------
+  // Comparison
+  // -----------------------------
   //
 
   if (intent?.type === "PRODUCT_COMPARISON" && context?.products?.length >= 2) {
@@ -110,9 +196,9 @@ export function updateConversation(
   }
 
   //
-  // --------------------------------------------------
+  // -----------------------------
   // Conversation History
-  // --------------------------------------------------
+  // -----------------------------
   //
 
   memory.history.push({
@@ -121,8 +207,7 @@ export function updateConversation(
     timestamp: Date.now(),
   });
 
-  // Keep only the latest 10 exchanges.
-  if (memory.history.length > 10) {
+  if (memory.history.length > 15) {
     memory.history.shift();
   }
 

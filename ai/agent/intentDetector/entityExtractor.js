@@ -7,7 +7,7 @@ import occasions from "../dictionaries/occasions.js";
 import fragranceNotes from "../dictionaries/fragranceNotes.js";
 
 const PRODUCT_TYPES = {
-  perfume: ["perfume", "perfumes"],
+  perfume: ["perfume", "perfumes", "fragrance", "fragrances"],
 
   body_mist: ["body mist", "body mists", "mist", "mists"],
 
@@ -15,134 +15,87 @@ const PRODUCT_TYPES = {
 
   perfume_oil: ["perfume oil", "perfume oils", "oil", "oils"],
 
-  deodorant: [
-    "deodorant",
-    "deodorants",
-    "roll on",
-    "roll-on",
-    "rollon",
-    "roll ons",
-  ],
+  deodorant: ["deodorant", "deodorants", "roll on", "roll-on", "rollon"],
 
   shampoo: ["shampoo", "shampoos"],
 
-  conditioner: [
-    "conditioner",
-    "conditioners",
-    "leave in conditioner",
-    "deep conditioner",
-  ],
-
-  candle: ["candle", "candles", "scented candle", "scented candles"],
+  conditioner: ["conditioner", "conditioners"],
 
   diffuser: ["diffuser", "diffusers"],
+
+  candle: ["candle", "candles"],
+
+  gift_set: ["gift set", "gift sets", "giftset", "giftsets"],
 };
 
-const IGNORED_TAGS = [
-  "perfume",
-  "fragrance",
-  "gift",
-  "men",
-  "women",
-  "kids",
-  "body spray",
-  "body mist",
-  "rollon",
-  "rollons",
-  "hair",
-  "shampoo",
-  "conditioner",
-  "leave-in conditioner",
-  "deep conditioner",
-  "perfume oil",
-  "scented candle",
-  "diffuser",
-];
+const RECIPIENTS = {
+  dad: ["dad", "father", "daddy", "papa"],
+
+  mum: ["mum", "mom", "mother", "mummy"],
+
+  husband: ["husband"],
+
+  wife: ["wife"],
+
+  boyfriend: ["boyfriend"],
+
+  girlfriend: ["girlfriend"],
+
+  brother: ["brother"],
+
+  sister: ["sister"],
+
+  friend: ["friend"],
+};
 
 const STOP_WORDS = [
   "show",
   "find",
+  "recommend",
   "search",
-  "looking",
-  "look",
-  "for",
-  "i",
   "want",
   "need",
   "buy",
-  "have",
-  "recommend",
-  "recommended",
-  "best",
-  "top",
-  "cheap",
-  "expensive",
-  "good",
+  "please",
   "give",
   "me",
-  "please",
-  "women",
-  "woman",
-  "female",
-  "ladies",
-  "men",
-  "man",
-  "male",
-  "perfume",
-  "perfumes",
-  "mist",
-  "mists",
-  "body",
-  "spray",
-  "sprays",
-  "oil",
-  "oils",
-  "diffuser",
-  "diffusers",
-  "candle",
-  "candles",
-  "scented",
-  "rollon",
-  "roll-ons",
 ];
 
-const EXCLUDE_PATTERNS = [
-  "not",
-  "except",
-  "excluding",
-  "without",
-  "anything but",
-  "other than",
-  "don't show",
-  "dont show",
-  "exclude",
-];
-
-function matchWordWithBoundaries(wordsArray, targetText) {
-  return wordsArray.some((word) => {
+function contains(words, text) {
+  return words.some((word) => {
     const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-    return new RegExp(`\\b${escaped}\\b`, "i").test(targetText);
+    return new RegExp(`\\b${escaped}\\b`, "i").test(text);
   });
 }
 
-function extractPossibleBrandPhrase(message) {
-  return message
-    .toLowerCase()
-    .replace(/[^\w\s-]/g, " ")
-    .split(/\s+/)
-    .filter((word) => word && !STOP_WORDS.includes(word))
-    .join(" ");
+function detectBudget(text) {
+  const match =
+    text.match(/under\s*₦?\s*([\d,]+)/i) ||
+    text.match(/below\s*₦?\s*([\d,]+)/i) ||
+    text.match(/less than\s*₦?\s*([\d,]+)/i);
+
+  if (!match) {
+    return null;
+  }
+
+  return Number(match[1].replace(/,/g, ""));
 }
 
-function isExcludedBrand(message, brand) {
-  const text = message.toLowerCase();
+function detectPriceRange(text) {
+  const range = text.match(/between\s*₦?\s*([\d,]+)\s*and\s*₦?\s*([\d,]+)/i);
 
-  const brandNames = [brand.name.toLowerCase(), brand.slug.toLowerCase()];
+  if (!range) {
+    return {
+      minPrice: null,
+      maxPrice: null,
+    };
+  }
 
-  return EXCLUDE_PATTERNS.some((pattern) =>
-    brandNames.some((name) => text.includes(`${pattern} ${name}`)),
-  );
+  return {
+    minPrice: Number(range[1].replace(/,/g, "")),
+    maxPrice: Number(range[2].replace(/,/g, "")),
+  };
 }
 
 export default async function extractEntities(message) {
@@ -155,54 +108,39 @@ export default async function extractEntities(message) {
     occasion: null,
     note: null,
     productType: null,
+
+    recipient: null,
+
+    budget: null,
+
+    minPrice: null,
+    maxPrice: null,
+
+    product: null,
+
+    comparisonProducts: [],
   };
 
   //
   // -------------------------
-  // Brand
+  // Brands
   // -------------------------
   //
 
   const brands = await brandDictionary.getBrands();
 
-  const searchableBrands = brands.filter(
-    (brand) => !IGNORED_TAGS.includes(brand.name.toLowerCase()),
-  );
+  const fuse = new Fuse(brands, {
+    keys: ["name", "slug"],
+    threshold: 0.3,
+  });
 
-  let matchedBrand =
-    searchableBrands
-      .filter((brand) => {
-        const name = brand.name.toLowerCase();
-        const slug = brand.slug.toLowerCase();
+  const results = fuse.search(message);
 
-        return text.includes(name) || text.includes(slug);
-      })
-      .sort((a, b) => b.name.length - a.name.length)[0] || null;
+  if (results.length) {
+    entities.brand = results[0].item;
 
-  if (!matchedBrand) {
-    const candidate = extractPossibleBrandPhrase(message);
-
-    if (candidate.length >= 3) {
-      const fuse = new Fuse(searchableBrands, {
-        keys: ["name", "slug"],
-        threshold: 0.3,
-        ignoreLocation: true,
-        minMatchCharLength: 3,
-      });
-
-      const result = fuse.search(candidate);
-
-      if (result.length) {
-        matchedBrand = result[0].item;
-      }
-    }
-  }
-
-  if (matchedBrand) {
-    if (isExcludedBrand(message, matchedBrand)) {
-      entities.excludeBrand = matchedBrand;
-    } else {
-      entities.brand = matchedBrand;
+    if (results.length >= 2) {
+      entities.comparisonProducts = [results[0].item, results[1].item];
     }
   }
 
@@ -212,8 +150,8 @@ export default async function extractEntities(message) {
   // -------------------------
   //
 
-  for (const [type, words] of Object.entries(PRODUCT_TYPES)) {
-    if (matchWordWithBoundaries(words, text)) {
+  for (const [type, aliases] of Object.entries(PRODUCT_TYPES)) {
+    if (contains(aliases, text)) {
       entities.productType = type;
       break;
     }
@@ -225,8 +163,8 @@ export default async function extractEntities(message) {
   // -------------------------
   //
 
-  for (const [gender, words] of Object.entries(genders)) {
-    if (matchWordWithBoundaries(words, text)) {
+  for (const [gender, aliases] of Object.entries(genders)) {
+    if (contains(aliases, text)) {
       entities.gender = gender;
       break;
     }
@@ -238,8 +176,8 @@ export default async function extractEntities(message) {
   // -------------------------
   //
 
-  for (const [occasion, words] of Object.entries(occasions)) {
-    if (matchWordWithBoundaries(words, text)) {
+  for (const [occasion, aliases] of Object.entries(occasions)) {
+    if (contains(aliases, text)) {
       entities.occasion = occasion;
       break;
     }
@@ -247,16 +185,48 @@ export default async function extractEntities(message) {
 
   //
   // -------------------------
-  // Notes
+  // Fragrance Note
   // -------------------------
   //
 
-  for (const [note, words] of Object.entries(fragranceNotes)) {
-    if (matchWordWithBoundaries(words, text)) {
+  for (const [note, aliases] of Object.entries(fragranceNotes)) {
+    if (contains(aliases, text)) {
       entities.note = note;
       break;
     }
   }
+
+  //
+  // -------------------------
+  // Recipient
+  // -------------------------
+  //
+
+  for (const [recipient, aliases] of Object.entries(RECIPIENTS)) {
+    if (contains(aliases, text)) {
+      entities.recipient = recipient;
+      break;
+    }
+  }
+
+  //
+  // -------------------------
+  // Budget
+  // -------------------------
+  //
+
+  entities.budget = detectBudget(text);
+
+  //
+  // -------------------------
+  // Price Range
+  // -------------------------
+  //
+
+  const prices = detectPriceRange(text);
+
+  entities.minPrice = prices.minPrice;
+  entities.maxPrice = prices.maxPrice;
 
   return entities;
 }

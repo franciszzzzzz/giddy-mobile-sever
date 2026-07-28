@@ -14,21 +14,92 @@ function containsWord(text, words) {
   });
 }
 
-export default function classifyIntent(message) {
+export default function classifyIntent(message, entities = {}) {
   const text = message.toLowerCase().trim();
 
   //
-  // -------------------------------------------------
+  // -----------------------------------------
+  // Greeting
+  // -----------------------------------------
+  //
+
+  if (text.length <= 25 && containsWord(text, greetings)) {
+    return INTENTS.GREETING;
+  }
+
+  //
+  // -----------------------------------------
+  // Follow-up
+  // -----------------------------------------
+  //
+
+  if (
+    /^(it|this|that|they|them)\b/i.test(text) ||
+    /\b(first|second|third|fourth|last)\b/i.test(text) ||
+    /\bwhat about\b/i.test(text) ||
+    /\bhow about\b/i.test(text) ||
+    /\bdoes it\b/i.test(text) ||
+    /\bis it\b/i.test(text) ||
+    /\bdoes this\b/i.test(text) ||
+    /\bthat one\b/i.test(text)
+  ) {
+    return INTENTS.FOLLOW_UP;
+  }
+
+  //
+  // -----------------------------------------
+  // Comparison
+  // -----------------------------------------
+  //
+
+  const comparisonRequested =
+    containsWord(text, comparisonWords) ||
+    text.includes(" vs ") ||
+    text.includes(" versus ") ||
+    text.includes("compare");
+
+  if (comparisonRequested) {
+    return INTENTS.PRODUCT_COMPARISON;
+  }
+
+  //
+  // -----------------------------------------
+  // Education
+  // -----------------------------------------
+  //
+
+  if (
+    containsWord(text, educationTopics) &&
+    (text.includes("what is") ||
+      text.includes("what are") ||
+      text.includes("why") ||
+      text.includes("difference") ||
+      text.includes("how"))
+  ) {
+    return INTENTS.FRAGRANCE_EDUCATION;
+  }
+
+  //
+  // -----------------------------------------
+  // Store Information
+  // -----------------------------------------
+  //
+
+  if (containsWord(text, storeTopics)) {
+    return INTENTS.STORE_INFORMATION;
+  }
+
+  //
+  // -----------------------------------------
   // Recommendation
-  // -------------------------------------------------
+  // -----------------------------------------
   //
 
   if (
     containsWord(text, recommendationWords) ||
-    /\bbest\b/i.test(text) ||
-    /\btop\b/i.test(text) ||
-    /\bsuggest\b/i.test(text) ||
     /\brecommend\b/i.test(text) ||
+    /\bsuggest\b/i.test(text) ||
+    /\bbest\b/i.test(text) ||
     /\bgift\b/i.test(text) ||
     /\bfor my\b/i.test(text) ||
     /\bfor a\b/i.test(text)
@@ -37,67 +108,27 @@ export default function classifyIntent(message) {
   }
 
   //
-  // -------------------------------------------------
-  // Comparison
-  // -------------------------------------------------
-  //
-
-  const comparisonRequested =
-    containsWord(text, comparisonWords) ||
-    text.includes("which is better") ||
-    text.includes("which one is better");
-
-  const comparisonSeparators =
-    text.includes(" vs ") ||
-    text.includes(" versus ") ||
-    text.includes(" and ");
-
-  if (comparisonRequested && comparisonSeparators) {
-    return INTENTS.PRODUCT_COMPARISON;
-  }
-
-  //
-  // -------------------------------------------------
-  // Education
-  // -------------------------------------------------
+  // -----------------------------------------
+  // Product Information
+  // -----------------------------------------
   //
 
   if (
-    containsWord(text, educationTopics) &&
-    (text.includes("what is") ||
-      text.includes("what are") ||
-      text.includes("how") ||
-      text.includes("why") ||
-      text.includes("difference") ||
-      text.includes("explain"))
+    entities.brand ||
+    entities.product ||
+    text.startsWith("tell me about") ||
+    text.startsWith("what does") ||
+    text.startsWith("how does") ||
+    text.startsWith("is ") ||
+    text.startsWith("does ")
   ) {
-    return INTENTS.FRAGRANCE_EDUCATION;
+    return INTENTS.PRODUCT_INFORMATION;
   }
 
   //
-  // -------------------------------------------------
-  // Store
-  // -------------------------------------------------
-  //
-
-  if (containsWord(text, storeTopics)) {
-    return INTENTS.STORE_INFORMATION;
-  }
-
-  //
-  // -------------------------------------------------
-  // Greeting
-  // -------------------------------------------------
-  //
-
-  if (text.length <= 25 && containsWord(text, greetings)) {
-    return INTENTS.GREETING;
-  }
-
-  //
-  // -------------------------------------------------
+  // -----------------------------------------
   // Product Search
-  // -------------------------------------------------
+  // -----------------------------------------
   //
 
   return INTENTS.PRODUCT_SEARCH;

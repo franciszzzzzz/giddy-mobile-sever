@@ -1,8 +1,8 @@
 import aiProductService from "../../../services/aiProduct.service.js";
 import formatter from "../productFormatter.js";
-import { buildFilters } from "../productFilterBuilder.js";
 import { rankProducts } from "../productRanker.js";
 import productTypes from "../../agent/dictionaries/productTypes.js";
+import { buildFilters } from "../retrieveProducts.js";
 
 function detectRequestedType(query = "") {
   const text = query.toLowerCase();
