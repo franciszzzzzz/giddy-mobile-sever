@@ -4,9 +4,6 @@ import buildPrompt from "../prompts/promptBuilder.js";
 import { generate } from "../llm/modelRouter.js";
 import buildResponse from "./responseBuilder.js";
 
-import aiCache from "../cache/aiCache.service.js";
-import { buildCacheKey } from "../cache/cacheKeyBuilder.js";
-
 import conversationMemory from "../memory/conversationMemory.js";
 import resolveIntentWithMemory from "../memory/memoryResolver.js";
 
@@ -59,52 +56,7 @@ class ClaireAgent {
 
       //
       // --------------------------------------------------
-      // 4. Decide whether this request should be cached
-      // --------------------------------------------------
-      //
-      const cacheableIntents = [
-        "PRODUCT_SEARCH",
-        "PRODUCT_RECOMMENDATION",
-        "PRODUCT_COMPARISON",
-        "FRAGRANCE_EDUCATION",
-        "STORE_INFORMATION",
-      ];
-
-      const shouldCache =
-        cacheableIntents.includes(intent.type) &&
-        (!context.products || context.products.length > 0);
-
-      const cacheKey = buildCacheKey(intent);
-
-      //
-      // --------------------------------------------------
-      // 5. Try Redis
-      // --------------------------------------------------
-      //
-      if (shouldCache) {
-        const cached = await aiCache.get(cacheKey);
-
-        if (cached) {
-          logger.info({
-            message: "Returning cached AI response.",
-            cacheKey,
-          });
-
-          conversationMemory.updateConversation(sessionId, {
-            intent,
-            entities: intent,
-            context,
-            userMessage: message,
-            assistantMessage: cached.message,
-          });
-
-          return cached;
-        }
-      }
-
-      //
-      // --------------------------------------------------
-      // 6. Build Prompt
+      // 4. Build Prompt
       // --------------------------------------------------
       //
       const messages = buildPrompt({
@@ -116,7 +68,7 @@ class ClaireAgent {
 
       //
       // --------------------------------------------------
-      // 7. Generate AI response
+      // 5. Generate AI response
       // --------------------------------------------------
       //
       const result = await generate({
@@ -132,7 +84,7 @@ class ClaireAgent {
 
       //
       // --------------------------------------------------
-      // 8. Build frontend response
+      // 6. Build frontend response
       // --------------------------------------------------
       //
       const response = buildResponse({
@@ -143,21 +95,7 @@ class ClaireAgent {
 
       //
       // --------------------------------------------------
-      // 9. Cache response (only when appropriate)
-      // --------------------------------------------------
-      //
-      if (shouldCache) {
-        await aiCache.set(cacheKey, response);
-
-        logger.info({
-          message: "AI response cached.",
-          cacheKey,
-        });
-      }
-
-      //
-      // --------------------------------------------------
-      // 10. Update conversation memory
+      // 7. Update conversation memory
       // --------------------------------------------------
       //
       conversationMemory.updateConversation(sessionId, {
