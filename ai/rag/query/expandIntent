@@ -56,6 +56,7 @@ const FILLER_WORDS = new Set([
   "great",
   "nice",
   "help",
+  "help",
   "choose",
   "pick",
   "under",

@@ -1,0 +1,406 @@
+import Fuse from "fuse.js";
+
+import brandDictionary from "../dynamic/brands.js";
+import categoryGroups from "../dictionaries/categoryGroups.js";
+import genders from "../dictionaries/genders.js";
+import occasions from "../dictionaries/occasions.js";
+import fragranceNotes from "../dictionaries/fragranceNotes.js";
+import productTypes from "../dictionaries/productTypes.js";
+
+const RECIPIENTS = {
+  dad: ["dad", "father", "daddy", "papa"],
+
+  mum: ["mum", "mom", "mother", "mummy"],
+
+  husband: ["husband"],
+
+  wife: ["wife"],
+
+  boyfriend: ["boyfriend"],
+
+  girlfriend: ["girlfriend"],
+
+  brother: ["brother"],
+
+  sister: ["sister"],
+
+  friend: ["friend"],
+};
+
+/**
+ * Words that should NEVER be matched as a brand.
+ *
+ * These are generic product terms, gender words, and common
+ * shopping words that Fuse.js might fuzzy-match to a brand name.
+ */
+const BRAND_BLOCKLIST = new Set([
+  // Product type words
+  "perfume",
+  "perfumes",
+  "fragrance",
+  "fragrances",
+  "scent",
+  "scents",
+  "cologne",
+  "colognes",
+  "mist",
+  "mists",
+  "body mist",
+  "body mists",
+  "spray",
+  "sprays",
+  "body spray",
+  "body sprays",
+  "oil",
+  "oils",
+  "perfume oil",
+  "fragrance oil",
+  "diffuser",
+  "diffusers",
+  "reed diffuser",
+  "candle",
+  "candles",
+  "scented candle",
+  "scented candles",
+  "deodorant",
+  "deodorants",
+  "antiperspirant",
+  "roll on",
+  "roll-on",
+  "rollon",
+  "gift set",
+  "gift sets",
+  "giftset",
+  "giftsets",
+  "shampoo",
+  "conditioner",
+  "hair care",
+  "haircare",
+  "edp",
+  "edt",
+  "eau de parfum",
+  "eau de toilette",
+  "parfum",
+  "aftershave",
+
+  // Gender words
+  "men",
+  "man",
+  "male",
+  "women",
+  "woman",
+  "female",
+  "ladies",
+  "lady",
+  "unisex",
+  "kids",
+  "children",
+  "boys",
+  "girls",
+  "gentleman",
+  "masculine",
+  "feminine",
+
+  // Common shopping words
+  "recommend",
+  "recommendation",
+  "suggest",
+  "suggestion",
+  "show",
+  "find",
+  "search",
+  "looking",
+  "buy",
+  "purchase",
+  "order",
+  "shop",
+  "browse",
+  "best",
+  "good",
+  "great",
+  "nice",
+  "affordable",
+  "cheap",
+  "luxury",
+  "designer",
+  "niche",
+  "dupe",
+  "clone",
+  "gift",
+  "present",
+  "for",
+  "under",
+  "below",
+  "price",
+  "cost",
+  "how much",
+
+  // Fragrance note words
+  "woody",
+  "floral",
+  "citrus",
+  "fruity",
+  "spicy",
+  "vanilla",
+  "musk",
+  "musky",
+  "aquatic",
+  "fresh",
+  "sweet",
+  "smoky",
+  "rose",
+  "jasmine",
+  "oud",
+  "sandalwood",
+  "cedar",
+  "bergamot",
+  "lemon",
+  "pepper",
+  "cinnamon",
+  "honey",
+  "tobacco",
+  "incense",
+
+  // Occasion words
+  "wedding",
+  "office",
+  "work",
+  "church",
+  "school",
+  "date",
+  "gym",
+  "party",
+  "beach",
+  "casual",
+  "daily",
+  "everyday",
+  "vacation",
+  "holiday",
+  "birthday",
+  "club",
+]);
+
+function contains(words, text) {
+  return words.some((word) => {
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    return new RegExp(`\\b${escaped}\\b`, "i").test(text);
+  });
+}
+
+function detectBudget(text) {
+  const match =
+    text.match(/under\s*₦?\s*([\d,]+)/i) ||
+    text.match(/below\s*₦?\s*([\d,]+)/i) ||
+    text.match(/less than\s*₦?\s*([\d,]+)/i);
+
+  if (!match) {
+    return null;
+  }
+
+  return Number(match[1].replace(/,/g, ""));
+}
+
+function detectPriceRange(text) {
+  const range = text.match(/between\s*₦?\s*([\d,]+)\s*and\s*₦?\s*([\d,]+)/i);
+
+  if (!range) {
+    return {
+      minPrice: null,
+      maxPrice: null,
+    };
+  }
+
+  return {
+    minPrice: Number(range[1].replace(/,/g, "")),
+    maxPrice: Number(range[2].replace(/,/g, "")),
+  };
+}
+
+/**
+ * Checks whether a brand name should be blocked from matching.
+ *
+ * Blocks generic product terms, gender words, and other common
+ * shopping words that Fuse.js might fuzzy-match to a brand.
+ *
+ * @param {string} brandName
+ * @returns {boolean}
+ */
+function isBrandBlocked(brandName) {
+  if (!brandName) {
+    return true;
+  }
+
+  const name = brandName.toLowerCase().trim();
+
+  // Check exact match in blocklist
+  if (BRAND_BLOCKLIST.has(name)) {
+    return true;
+  }
+
+  // Check if the brand name is a single common word
+  // that is too short or too generic
+  if (name.length <= 3) {
+    return true;
+  }
+
+  return false;
+}
+
+export default async function extractEntities(message) {
+  const text = message.toLowerCase();
+
+  const entities = {
+    brand: null,
+
+    excludeBrand: null,
+
+    gender: null,
+
+    occasion: null,
+
+    note: null,
+
+    productType: null,
+
+    categoryGroup: null,
+  };
+  //
+  // -------------------------
+  // Product Type (check BEFORE brand)
+  // -------------------------
+  //
+
+  for (const [type, aliases] of Object.entries(productTypes)) {
+    if (contains(aliases, text)) {
+      entities.productType = type;
+      break;
+    }
+  }
+
+  //
+  // -------------------------
+  // Brands (with blocklist filtering)
+  // -------------------------
+  //
+
+  const brands = await brandDictionary.getBrands();
+
+  const fuse = new Fuse(brands, {
+    keys: ["name", "slug"],
+    threshold: 0.2, // Stricter threshold to reduce false matches
+    includeScore: true,
+  });
+
+  const results = fuse.search(message);
+
+  //
+  // Filter out blocked words and pick the first valid match
+  //
+  const validBrandResults = results.filter(
+    (result) =>
+      !isBrandBlocked(result.item.name) &&
+      (result.score === undefined || result.score <= 0.3),
+  );
+
+  if (validBrandResults.length) {
+    entities.brand = validBrandResults[0].item;
+
+    if (validBrandResults.length >= 2) {
+      entities.comparisonProducts = [
+        validBrandResults[0].item,
+        validBrandResults[1].item,
+      ];
+    }
+  }
+
+  //
+  // -------------------------
+  // Category Group
+  // -------------------------
+  //
+
+  for (const [group, words] of Object.entries(categoryGroups)) {
+    if (contains(words, text)) {
+      entities.categoryGroup = {
+        slug: group,
+        name: group.replace(/-/g, " "),
+      };
+
+      break;
+    }
+  }
+
+  //
+  // -------------------------
+  // Gender
+  // -------------------------
+  //
+
+  for (const [gender, aliases] of Object.entries(genders)) {
+    if (contains(aliases, text)) {
+      entities.gender = gender;
+      break;
+    }
+  }
+
+  //
+  // -------------------------
+  // Occasion
+  // -------------------------
+  //
+
+  for (const [occasion, aliases] of Object.entries(occasions)) {
+    if (contains(aliases, text)) {
+      entities.occasion = occasion;
+      break;
+    }
+  }
+
+  //
+  // -------------------------
+  // Fragrance Note
+  // -------------------------
+  //
+
+  for (const [note, aliases] of Object.entries(fragranceNotes)) {
+    if (contains(aliases, text)) {
+      entities.note = note;
+      break;
+    }
+  }
+
+  //
+  // -------------------------
+  // Recipient
+  // -------------------------
+  //
+
+  for (const [recipient, aliases] of Object.entries(RECIPIENTS)) {
+    if (contains(aliases, text)) {
+      entities.recipient = recipient;
+      break;
+    }
+  }
+
+  //
+  // -------------------------
+  // Budget
+  // -------------------------
+  //
+
+  entities.budget = detectBudget(text);
+
+  //
+  // -------------------------
+  // Price Range
+  // -------------------------
+  //
+
+  const prices = detectPriceRange(text);
+
+  entities.minPrice = prices.minPrice;
+  entities.maxPrice = prices.maxPrice;
+
+  return entities;
+}
