@@ -5,6 +5,7 @@ import removeDuplicates from "../helpers/removeDuplicates.js";
 import productMatchesIntent from "../helpers/productMatchesIntent.js";
 
 import { rankProducts } from "../productRanker.js";
+import expandIntent from "../query/expandIntent.js";
 
 /**
  * Main retrieval orchestrator.
@@ -12,9 +13,21 @@ import { rankProducts } from "../productRanker.js";
  * Determines which retrieval strategies should execute,
  * merges the results, removes duplicates,
  * ranks them and finally applies semantic filtering.
+ *
+ * The intent is expanded before retrieval begins,
+ * stripping conversational filler so that downstream
+ * searches receive clean, targeted search terms.
  */
 export default async function retrieveProducts(intent = {}) {
-  const retrievals = [];
+  //
+  // --------------------------------------------------
+  // Expand Intent
+  // --------------------------------------------------
+  //
+  // Transforms the raw conversational query into
+  // clean search terms before any retrieval happens.
+  //
+  const expandedIntent = expandIntent(intent);
 
   //
   // --------------------------------------------------
@@ -22,12 +35,14 @@ export default async function retrieveProducts(intent = {}) {
   // --------------------------------------------------
   //
 
+  const retrievals = [];
+
   for (const strategy of RETRIEVAL_STRATEGIES) {
-    if (!strategy.condition(intent)) {
+    if (!strategy.condition(expandedIntent)) {
       continue;
     }
 
-    retrievals.push(strategy.execute(intent));
+    retrievals.push(strategy.execute(expandedIntent));
   }
 
   //
@@ -70,7 +85,7 @@ export default async function retrieveProducts(intent = {}) {
   // --------------------------------------------------
   //
 
-  products = rankProducts(products, intent);
+  products = rankProducts(products, expandedIntent);
 
   //
   // --------------------------------------------------
@@ -79,7 +94,7 @@ export default async function retrieveProducts(intent = {}) {
   //
 
   products = products.filter((product) =>
-    productMatchesIntent(product, intent),
+    productMatchesIntent(product, expandedIntent),
   );
 
   return products;

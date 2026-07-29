@@ -6,6 +6,19 @@ function contains(searchable, value) {
   return searchable.includes(value.toLowerCase());
 }
 
+/**
+ * Normalizes a product type key into a searchable phrase.
+ *
+ * Handles both snake_case ("body_mist") and camelCase ("bodyMist")
+ * by converting them to space-separated words ("body mist").
+ */
+function normalizeProductType(productType) {
+  return productType
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .toLowerCase();
+}
+
 export default function productMatchesIntent(product, intent = {}) {
   if (!product) {
     return false;
@@ -40,11 +53,12 @@ export default function productMatchesIntent(product, intent = {}) {
   // Product Type
   // -----------------------------
   //
-  if (
-    intent.productType &&
-    !contains(searchable, intent.productType.replace(/_/g, " "))
-  ) {
-    return false;
+  if (intent.productType) {
+    const productTypeTerm = normalizeProductType(intent.productType);
+
+    if (!contains(searchable, productTypeTerm)) {
+      return false;
+    }
   }
 
   //

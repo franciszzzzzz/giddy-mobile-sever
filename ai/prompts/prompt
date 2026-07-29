@@ -42,14 +42,14 @@ export default function buildPrompt({
    */
 
   switch (intent?.type) {
-    case "PRODUCT_RECOMMENDATION":
+    case INTENTS.PRODUCT_RECOMMENDATION:
       messages.push({
         role: "system",
         content: buildRecommendationPrompt(),
       });
       break;
 
-    case "EDUCATION":
+    case INTENTS.FRAGRANCE_EDUCATION:
       messages.push({
         role: "system",
         content: buildEducationPrompt(),

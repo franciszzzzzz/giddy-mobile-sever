@@ -140,11 +140,15 @@ function scoreProduct(product, intent = {}) {
   // -------------------------
   //
 
-  if (
-    intent.productType &&
-    matches(searchable, intent.productType.replace(/_/g, " "))
-  ) {
-    score += SCORES.PRODUCT_TYPE;
+  if (intent.productType) {
+    const productTypeTerm = intent.productType
+      .replace(/_/g, " ")
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .toLowerCase();
+
+    if (matches(searchable, productTypeTerm)) {
+      score += SCORES.PRODUCT_TYPE;
+    }
   }
 
   //

@@ -5,28 +5,7 @@ import categoryGroups from "../dictionaries/categoryGroups.js";
 import genders from "../dictionaries/genders.js";
 import occasions from "../dictionaries/occasions.js";
 import fragranceNotes from "../dictionaries/fragranceNotes.js";
-
-const PRODUCT_TYPES = {
-  perfume: ["perfume", "perfumes", "fragrance", "fragrances"],
-
-  body_mist: ["body mist", "body mists", "mist", "mists"],
-
-  body_spray: ["body spray", "body sprays"],
-
-  perfume_oil: ["perfume oil", "perfume oils", "oil", "oils"],
-
-  deodorant: ["deodorant", "deodorants", "roll on", "roll-on", "rollon"],
-
-  shampoo: ["shampoo", "shampoos"],
-
-  conditioner: ["conditioner", "conditioners"],
-
-  diffuser: ["diffuser", "diffusers"],
-
-  candle: ["candle", "candles"],
-
-  gift_set: ["gift set", "gift sets", "giftset", "giftsets"],
-};
+import productTypes from "../dictionaries/productTypes.js";
 
 const RECIPIENTS = {
   dad: ["dad", "father", "daddy", "papa"],
@@ -47,19 +26,6 @@ const RECIPIENTS = {
 
   friend: ["friend"],
 };
-
-const STOP_WORDS = [
-  "show",
-  "find",
-  "recommend",
-  "search",
-  "want",
-  "need",
-  "buy",
-  "please",
-  "give",
-  "me",
-];
 
 function contains(words, text) {
   return words.some((word) => {
@@ -145,7 +111,7 @@ export default async function extractEntities(message) {
   // -------------------------
   //
 
-  for (const [type, aliases] of Object.entries(PRODUCT_TYPES)) {
+  for (const [type, aliases] of Object.entries(productTypes)) {
     if (contains(aliases, text)) {
       entities.productType = type;
       break;
