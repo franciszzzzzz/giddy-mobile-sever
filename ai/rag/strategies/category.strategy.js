@@ -1,5 +1,5 @@
 import formatter from "../productFormatter.js";
-import { retrieveContext } from "../retrieval.service.js";
+import { retrieve } from "../retrieval.service.js";
 
 /**
  * Category Strategy
@@ -8,7 +8,7 @@ import { retrieveContext } from "../retrieval.service.js";
  * category group using the shared RAG retrieval layer.
  */
 async function execute(intent) {
-  const context = await retrieveContext(intent);
+  const context = await retrieve(intent);
 
   return {
     source: "category",

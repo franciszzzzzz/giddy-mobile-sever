@@ -12,7 +12,7 @@ import followUpStrategy from "./followUp.strategy.js";
 
 import { INTENTS } from "../../constants/intents.js";
 
-export default {
+const strategies = {
   [INTENTS.PRODUCT_SEARCH]: productSearch,
 
   [INTENTS.PRODUCT_RECOMMENDATION]: recommendation,
@@ -35,3 +35,13 @@ export default {
 
   [INTENTS.FOLLOW_UP]: followUpStrategy,
 };
+
+/**
+ * Returns the appropriate strategy.
+ * Falls back to PRODUCT_SEARCH.
+ */
+export function getStrategy(intentType) {
+  return strategies[intentType] || strategies[INTENTS.PRODUCT_SEARCH];
+}
+
+export default strategies;

@@ -1,5 +1,5 @@
 import formatter from "../productFormatter.js";
-import { retrieveContext } from "../retrieval.service.js";
+import { retrieve } from "../retrieval.service.js";
 
 /**
  * Similar Products Strategy
@@ -8,7 +8,7 @@ import { retrieveContext } from "../retrieval.service.js";
  * selected product using the shared retrieval pipeline.
  */
 async function execute(intent) {
-  const context = await retrieveContext(intent);
+  const context = await retrieve(intent);
 
   return {
     source: "similar",

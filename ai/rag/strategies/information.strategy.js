@@ -1,5 +1,5 @@
 import formatter from "../productFormatter.js";
-import { retrieveContext } from "../retrieval.service.js";
+import { retrieve } from "../retrieval.service.js";
 
 /**
  * Product Information Strategy
@@ -8,7 +8,7 @@ import { retrieveContext } from "../retrieval.service.js";
  * using the shared RAG retrieval pipeline.
  */
 async function execute(intent) {
-  const context = await retrieveContext(intent);
+  const context = await retrieve(intent);
 
   //
   // --------------------------------------------------

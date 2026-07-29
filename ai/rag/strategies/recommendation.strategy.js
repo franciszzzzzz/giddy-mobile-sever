@@ -1,4 +1,4 @@
-import retrievalService from "../retrieval.service.js";
+import { retrieve } from "../retrieval.service.js";
 
 /**
  * Recommendation Strategy
@@ -7,7 +7,7 @@ import retrievalService from "../retrieval.service.js";
  * to the RAG retrieval service.
  */
 async function execute(intent) {
-  return retrievalService.retrieve(intent);
+  return retrieve(intent);
 }
 
 export default {

@@ -2,11 +2,9 @@ import loadConversation from "./steps/01-loadConversation.js";
 import detectIntent from "./steps/02-detectIntent.js";
 import extractEntities from "./steps/03-extractEntities.js";
 import resolveMemory from "./steps/04-resolveMemory.js";
-import retrieveProducts from "./steps/05-retrieveProducts.js";
-import rankProducts from "./steps/06-rankProducts.js";
-import selectStrategy from "./steps/07-selectStrategy.js";
-import buildResponse from "./steps/08-buildResponse.js";
-import saveConversation from "./steps/09-saveConversation.js";
+import selectStrategy from "./steps/05-selectStrategy.js";
+import buildResponse from "./steps/06-buildResponse.js";
+import saveConversation from "./steps/07-saveConversation.js";
 
 /**
  * Claire AI Pipeline

@@ -1,5 +1,5 @@
 import formatter from "../productFormatter.js";
-import { retrieveContext } from "../retrieval.service.js";
+import { retrieve } from "../retrieval.service.js";
 
 /**
  * Product Comparison Strategy
@@ -13,7 +13,7 @@ import { retrieveContext } from "../retrieval.service.js";
  * - Search results
  */
 async function execute(intent) {
-  const context = await retrieveContext(intent);
+  const context = await retrieve(intent);
 
   //
   // --------------------------------------------------

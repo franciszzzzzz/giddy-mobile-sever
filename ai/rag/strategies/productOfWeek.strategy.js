@@ -1,5 +1,5 @@
 import formatter from "../productFormatter.js";
-import { retrieveContext } from "../retrieval.service.js";
+import { retrieve } from "../retrieval.service.js";
 
 /**
  * Product of the Week Strategy
@@ -8,7 +8,7 @@ import { retrieveContext } from "../retrieval.service.js";
  * using the shared retrieval pipeline.
  */
 async function execute(intent) {
-  const context = await retrieveContext({
+  const context = await retrieve({
     ...intent,
     productOfWeek: true,
   });

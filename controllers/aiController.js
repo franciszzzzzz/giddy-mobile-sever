@@ -4,14 +4,16 @@ import handleAsyncError from "../middleware/handleAsyncError.js";
 import logger from "../utils/logger.js";
 import providers from "../ai/llm/providers/index.js";
 import redisClient from "../config/redis.js";
+import runPipeline from "../ai/pipeline/index.js";
 
 /**
  * POST /api/v1/ai/chat
  */
-export const chatWithClaire = handleAsyncError(async (req, res, next) => {
-  const { message, history = [] } = req.body;
 
-  if (!message || !message.trim()) {
+export const chatWithClaire = handleAsyncError(async (req, res, next) => {
+  const { message } = req.body;
+
+  if (!message?.trim()) {
     return next(new HandleError("Message is required.", 400));
   }
 
@@ -20,36 +22,28 @@ export const chatWithClaire = handleAsyncError(async (req, res, next) => {
     userId: req.user?.id || null,
   });
 
-  const response = await ClaireAgent.chat({
+  const state = await runPipeline({
+    sessionId: req.user?.id || "anonymous",
     message: message.trim(),
-
-    history,
-
     user: req.user || null,
   });
 
-  if (!response.success) {
+  if (!state.response?.success) {
     return next(
       new HandleError(
-        response.error?.message || "Unable to process AI request.",
+        state.response?.error?.message || "Unable to process AI request.",
         500,
       ),
     );
   }
 
   logger.info({
-    provider: response.provider,
-
-    model: response.model,
-
-    intent: response.intent?.type,
-
+    message: "Claire conversation completed.",
+    intent: state.intent?.type,
     userId: req.user?.id || null,
-
-    success: true,
   });
 
-  res.status(200).json(response);
+  return res.status(200).json(state.response);
 });
 
 /**
