@@ -171,8 +171,117 @@ function getOccasionSearchTerm(occasion) {
 }
 
 /**
+ * Checks whether a term appears in the original query text.
+ *
+ * This prevents memory-inherited entities from polluting
+ * the keyword search when the user didn't actually mention
+ * them in the current message.
+ *
+ * @param {string} query - The original user query
+ * @param {string} term - The term to check for
+ * @returns {boolean}
+ */
+function isMentionedInQuery(query, term) {
+  if (!query || !term) {
+    return false;
+  }
+
+  const queryLower = query.toLowerCase();
+  const termLower = term.toLowerCase();
+
+  // Check if the term (or any significant part of it) appears in the query
+  if (queryLower.includes(termLower)) {
+    return true;
+  }
+
+  // For multi-word terms, check if any word matches
+  const words = termLower.split(/\s+/);
+  if (words.length > 1) {
+    return words.some((word) => word.length > 2 && queryLower.includes(word));
+  }
+
+  return false;
+}
+
+/**
+ * Checks whether a product type was mentioned in the query
+ * by looking at all its aliases.
+ *
+ * @param {string} query
+ * @param {string} productType
+ * @returns {boolean}
+ */
+function isProductTypeMentioned(query, productType) {
+  if (!query || !productType) {
+    return false;
+  }
+
+  const aliases = productTypes[productType];
+
+  if (!aliases?.length) {
+    return false;
+  }
+
+  return aliases.some((alias) =>
+    query.toLowerCase().includes(alias.toLowerCase()),
+  );
+}
+
+/**
+ * Checks whether a fragrance note was mentioned in the query
+ * by looking at all its aliases.
+ *
+ * @param {string} query
+ * @param {string} note
+ * @returns {boolean}
+ */
+function isNoteMentioned(query, note) {
+  if (!query || !note) {
+    return false;
+  }
+
+  const aliases = fragranceNotes[note];
+
+  if (!aliases?.length) {
+    return false;
+  }
+
+  return aliases.some((alias) =>
+    query.toLowerCase().includes(alias.toLowerCase()),
+  );
+}
+
+/**
+ * Checks whether an occasion was mentioned in the query
+ * by looking at all its aliases.
+ *
+ * @param {string} query
+ * @param {string} occasion
+ * @returns {boolean}
+ */
+function isOccasionMentioned(query, occasion) {
+  if (!query || !occasion) {
+    return false;
+  }
+
+  const aliases = occasions[occasion];
+
+  if (!aliases?.length) {
+    return false;
+  }
+
+  return aliases.some((alias) =>
+    query.toLowerCase().includes(alias.toLowerCase()),
+  );
+}
+
+/**
  * Builds a clean keyword search term from the intent's
  * detected entities.
+ *
+ * IMPORTANT: Only includes entities that were actually mentioned
+ * in the current query, NOT entities inherited from conversation memory.
+ * This prevents stale brand/productType from polluting unrelated queries.
  *
  * Priority: brand > productType > note > occasion > stripped query
  *
@@ -181,47 +290,54 @@ function getOccasionSearchTerm(occasion) {
  */
 function buildKeywordSearchTerm(intent) {
   const parts = [];
+  const query = intent.query || "";
 
   //
   // -------------------------
-  // Brand
+  // Brand — only if mentioned in current query
   // -------------------------
   //
-  if (intent.brand?.name) {
+  if (intent.brand?.name && isMentionedInQuery(query, intent.brand.name)) {
     parts.push(intent.brand.name);
   }
 
   //
   // -------------------------
-  // Product Type
+  // Product Type — only if mentioned in current query
   // -------------------------
   //
-  const productTypeTerm = getProductTypeSearchTerm(intent.productType);
+  if (intent.productType && isProductTypeMentioned(query, intent.productType)) {
+    const productTypeTerm = getProductTypeSearchTerm(intent.productType);
 
-  if (productTypeTerm) {
-    parts.push(productTypeTerm);
+    if (productTypeTerm) {
+      parts.push(productTypeTerm);
+    }
   }
 
   //
   // -------------------------
-  // Fragrance Note
+  // Fragrance Note — only if mentioned in current query
   // -------------------------
   //
-  const noteTerm = getNoteSearchTerm(intent.note);
+  if (intent.note && isNoteMentioned(query, intent.note)) {
+    const noteTerm = getNoteSearchTerm(intent.note);
 
-  if (noteTerm) {
-    parts.push(noteTerm);
+    if (noteTerm) {
+      parts.push(noteTerm);
+    }
   }
 
   //
   // -------------------------
-  // Occasion
+  // Occasion — only if mentioned in current query
   // -------------------------
   //
-  const occasionTerm = getOccasionSearchTerm(intent.occasion);
+  if (intent.occasion && isOccasionMentioned(query, intent.occasion)) {
+    const occasionTerm = getOccasionSearchTerm(intent.occasion);
 
-  if (occasionTerm) {
-    parts.push(occasionTerm);
+    if (occasionTerm) {
+      parts.push(occasionTerm);
+    }
   }
 
   //
@@ -230,7 +346,7 @@ function buildKeywordSearchTerm(intent) {
   // -------------------------
   //
   if (!parts.length) {
-    const stripped = stripFiller(intent.query);
+    const stripped = stripFiller(query);
 
     if (stripped) {
       parts.push(stripped);
@@ -242,6 +358,10 @@ function buildKeywordSearchTerm(intent) {
 
 /**
  * Builds the explicit search plan array.
+ *
+ * Includes all searches (even memory-inherited ones) because
+ * the retrieval strategies need the full intent context.
+ * The keyword search, however, only uses current-query terms.
  *
  * @param {Object} intent
  * @returns {Array}
@@ -328,6 +448,14 @@ function buildSearches(intent) {
  * This function sits between intent detection / memory resolution
  * and the retrieval strategies. It does NOT change the intent type.
  * It only refines the query and builds an explicit search plan.
+ *
+ * Key behavior:
+ * - The expandedQuery (used for keyword search) only includes
+ *   entities mentioned in the CURRENT query, not memory-inherited ones.
+ * - The searches array includes all entities (current + memory)
+ *   so retrieval strategies can still use memory context.
+ * - Follow-up intents pass through without expansion.
+ * - Non-product intents (greeting, education, store info) skip searches.
  *
  * @param {Object} intent - The detected + memory-resolved intent
  * @returns {Object} Expanded intent with clean query + searches array
