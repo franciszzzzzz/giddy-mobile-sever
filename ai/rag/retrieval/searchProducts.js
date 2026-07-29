@@ -2,15 +2,6 @@ import { wc } from "../../../config/db.js";
 
 import logger from "../../../utils/logger.js";
 
-import { getCache, setCache, CACHE_TTL } from "../../../utils/cacheUtils.js";
-
-/**
- * Builds a cache key for WooCommerce searches.
- */
-function buildCacheKey(filters = {}) {
-  return `rag:products:${JSON.stringify(filters)}`;
-}
-
 /**
  * Removes undefined and null values before sending
  * the request to WooCommerce.
@@ -55,25 +46,10 @@ export default async function searchProducts(filters = {}) {
     order: filters.order,
   });
 
-  const cacheKey = buildCacheKey(params);
-
-  const cached = await getCache(cacheKey);
-
-  if (cached) {
-    logger.info({
-      message: "RAG cache hit.",
-      cacheKey,
-    });
-
-    return cached;
-  }
-
   try {
     const response = await wc.get("/products", {
       params,
     });
-
-    await setCache(cacheKey, response.data, CACHE_TTL.PRODUCTS);
 
     logger.info({
       message: "WooCommerce products retrieved.",
