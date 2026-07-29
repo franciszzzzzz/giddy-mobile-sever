@@ -159,7 +159,7 @@ export default async function extractEntities(message) {
   //
 
   for (const [group, words] of Object.entries(categoryGroups)) {
-    if (matchWordWithBoundaries(words, text)) {
+    if (contains(words, text)) {
       entities.categoryGroup = {
         slug: group,
         name: group.replace(/-/g, " "),
