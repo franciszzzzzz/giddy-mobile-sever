@@ -1,24 +1,20 @@
 import aiProductService from "../../../services/aiProduct.service.js";
+import productTypes from "../../agent/dictionaries/productTypes.js";
 
-/**
- * Retrieves products belonging to a product type.
- *
- * Examples:
- * - perfume
- * - body_mist
- * - perfume_oil
- * - deodorant
- * - shampoo
- * - conditioner
- * - diffuser
- * - candle
- *
- * Accepts the entire intent object.
- */
 export default async function searchByProductType(intent = {}) {
   if (!intent.productType) {
     return [];
   }
 
-  return aiProductService.getProductsByProductType(intent.productType);
+  const aliases = productTypes[intent.productType];
+
+  if (!aliases?.length) {
+    return [];
+  }
+
+  // Search using the primary alias
+  return aiProductService.searchProducts(aliases[0], {
+    page: 1,
+    limit: 50,
+  });
 }
