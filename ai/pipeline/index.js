@@ -43,10 +43,6 @@ export default async function runPipeline({ sessionId, message }) {
 
   state = await resolveMemory(state);
 
-  state = await retrieveProducts(state);
-
-  state = await rankProducts(state);
-
   state = await selectStrategy(state);
 
   state = await buildResponse(state);
