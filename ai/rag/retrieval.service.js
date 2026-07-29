@@ -1,7 +1,6 @@
-import retrieveProducts from "./retrieval/retrieveProducts.js";
-
 import formatter from "./productFormatter.js";
 import { rankProducts } from "./productRanker.js";
+import retrieveProducts from "./retrieval/retrieveProducts.js";
 
 /**
  * Claire Retrieval Service
