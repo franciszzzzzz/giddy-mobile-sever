@@ -474,14 +474,29 @@ function buildKeywordSearchTerm(intent) {
 
   //
   // -------------------------
-  // Fallback: stripped query
+  // Remaining meaningful words from stripped query
   // -------------------------
   //
-  if (!parts.length) {
-    const stripped = stripFiller(query);
+  // Even when we have entity-based terms, the user may have
+  // mentioned specific brand names or product names that weren't
+  // detected as entities. We need to include those too.
+  //
+  const stripped = stripFiller(query);
 
-    if (stripped) {
-      parts.push(stripped);
+  if (stripped) {
+    const strippedWords = stripped.split(/\s+/);
+
+    // Get all the alias words we've already included
+    const alreadyIncluded = new Set(parts.join(" ").toLowerCase().split(/\s+/));
+
+    // Add words from the stripped query that aren't already included
+    // and aren't single common words like "good", "nice" etc.
+    for (const word of strippedWords) {
+      const wordLower = word.toLowerCase();
+
+      if (!alreadyIncluded.has(wordLower) && wordLower.length > 2) {
+        parts.push(word);
+      }
     }
   }
 
