@@ -504,6 +504,62 @@ function buildKeywordSearchTerm(intent) {
 }
 
 /**
+ * Returns an entity value only if it was actually mentioned in the
+ * current query. Memory-inherited entities that the user did NOT
+ * mention are dropped so they don't trigger unrelated retrieval searches.
+ *
+ * `intent.brand`, `intent.productType` and `intent.categoryGroup` drive
+ * dedicated retrieval strategies (brand / productType / category), so a
+ * stale value here pollutes the results even when the keyword search is
+ * clean. This is the companion to the keyword isolation in
+ * buildKeywordSearchTerm().
+ *
+ * @param {Object} intent
+ * @returns {Object} Cleaned entities { brand, productType, categoryGroup }
+ */
+function getCurrentQueryEntities(intent) {
+  const query = intent.query || "";
+
+  const result = {
+    brand: undefined,
+    productType: undefined,
+    categoryGroup: undefined,
+  };
+
+  //
+  // -------------------------
+  // Brand — only if its name appears in the current query
+  // -------------------------
+  //
+  if (intent.brand?.name && isMentionedInQuery(query, intent.brand.name)) {
+    result.brand = intent.brand;
+  }
+
+  //
+  // -------------------------
+  // Product Type — only if any alias is mentioned in the current query
+  // -------------------------
+  //
+  if (intent.productType && isProductTypeMentioned(query, intent.productType)) {
+    result.productType = intent.productType;
+  }
+
+  //
+  // -------------------------
+  // Category Group — only if any alias is mentioned in the current query
+  // -------------------------
+  //
+  if (
+    intent.categoryGroup?.slug &&
+    isCategoryGroupMentioned(query, intent.categoryGroup.slug)
+  ) {
+    result.categoryGroup = intent.categoryGroup;
+  }
+
+  return result;
+}
+
+/**
  * Builds the explicit search plan array.
  *
  * Includes all searches (even memory-inherited ones) because
@@ -599,6 +655,11 @@ function buildSearches(intent) {
  * Key behavior:
  * - The expandedQuery (used for keyword search) only includes
  *   entities mentioned in the CURRENT query, not memory-inherited ones.
+ * - Retrieval-driving entities (brand, productType, categoryGroup) on the
+ *   returned object are also limited to those mentioned in the CURRENT
+ *   query, so memory-inherited values don't trigger unrelated searches.
+ *   The original memory-resolved entities stay on `intent` for callers
+ *   (e.g. the prompt builder) that need full conversation context.
  * - The searches array includes all entities (current + memory)
  *   so retrieval strategies can still use memory context.
  * - Follow-up intents pass through without expansion.
@@ -660,9 +721,24 @@ export default function expandIntent(intent = {}) {
   // Product intents — expand
   // -------------------------
   //
-  const expandedQuery = buildKeywordSearchTerm(intent);
+  // Limit retrieval-driving entities to those mentioned in the CURRENT
+  // query. Memory-inherited brand / productType / categoryGroup would
+  // otherwise fire dedicated retrieval searches (e.g. productsByBrand)
+  // that have nothing to do with what the user just asked for.
+  //
+  const { brand, productType, categoryGroup } =
+    getCurrentQueryEntities(intent);
 
-  const searches = buildSearches(intent);
+  const cleanedIntent = {
+    ...intent,
+    brand,
+    productType,
+    categoryGroup,
+  };
+
+  const expandedQuery = buildKeywordSearchTerm(cleanedIntent);
+
+  const searches = buildSearches(cleanedIntent);
 
   logger.info({
     message: "expandIntent: query expanded.",
@@ -673,7 +749,7 @@ export default function expandIntent(intent = {}) {
   });
 
   return {
-    ...intent,
+    ...cleanedIntent,
     expandedQuery,
     searches,
   };

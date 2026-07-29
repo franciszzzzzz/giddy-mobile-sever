@@ -292,9 +292,11 @@ describe("expandIntent — searches array", () => {
     assert.equal(featured[0].value, true);
   });
 
-  test("includes memory-inherited brand in searches even if not in keyword", () => {
-    // Brand is in intent but not in query -> excluded from keyword,
-    // but STILL present in the searches array for retrieval strategies.
+  test("excludes memory-inherited brand from searches when not in the query", () => {
+    // Regression: a memory-inherited brand that the user did NOT mention
+    // must NOT trigger a productsByBrand retrieval. It should be dropped
+    // from both the keyword and the searches array (and the returned
+    // intent.brand), so retrieval only reflects the current message.
     const result = expandIntent({
       type: INTENTS.PRODUCT_SEARCH,
       query: "perfumes for women",
@@ -303,11 +305,13 @@ describe("expandIntent — searches array", () => {
       gender: "women",
     });
 
-    const brandSearch = result.searches.find((s) => s.type === "brand");
-    assert.ok(brandSearch, "memory brand should still appear in searches");
-    assert.equal(brandSearch.value, "Genie");
+    // No brand search at all.
+    assert.ok(!result.searches.some((s) => s.type === "brand"));
 
-    // ...yet the keyword must not contain it.
+    // The returned intent.brand is neutralized for retrieval.
+    assert.ok(!result.brand, "retrieval intent.brand must be unset");
+
+    // ...and the keyword must not contain it either.
     const keywordSearch = result.searches.find((s) => s.type === "keyword");
     assert.ok(!keywordSearch.value.toLowerCase().includes("genie"));
   });
@@ -334,6 +338,103 @@ describe("expandIntent — searches array", () => {
     // No productType search, no injection into keyword; just stripped word.
     assert.ok(!result.searches.some((s) => s.type === "productType"));
     assert.equal(result.expandedQuery, "widgets");
+  });
+});
+
+describe("expandIntent — regression: memory entities must not pollute retrieval", () => {
+  // These mirror real production logs where a brand/productType inherited
+  // from conversation memory fired unrelated retrieval searches.
+  //
+  // Log scenario 1: query "New arrivals" (PRODUCT_SEARCH) with memory
+  // brand "Storm" + productType "perfume" produced searches for
+  // productsByBrand:"Storm" and search:"perfume" instead of just the
+  // user's actual request.
+  test('"New arrivals" does not fire memory brand/productType searches', () => {
+    const result = expandIntent({
+      type: INTENTS.PRODUCT_SEARCH,
+      query: "New arrivals",
+      brand: { name: "Storm" }, // memory-inherited, not in query
+      productType: "perfume", // memory-inherited, not in query
+    });
+
+    // expandedQuery must reflect ONLY the current query.
+    assert.equal(result.expandedQuery, "new arrivals");
+
+    // No memory-inherited brand/productType searches.
+    assert.ok(!result.searches.some((s) => s.type === "brand"));
+    assert.ok(!result.searches.some((s) => s.type === "productType"));
+
+    // Retrieval-driving entities neutralized on the returned object.
+    assert.ok(!result.brand);
+    assert.ok(!result.productType);
+
+    // The keyword search reflects the current query.
+    const keyword = result.searches.find((s) => s.type === "keyword");
+    assert.equal(keyword.value, "new arrivals");
+  });
+
+  // Log scenario 2: query "Sahib" (PRODUCT_INFORMATION) with memory
+  // brand "Sahiib" + productType "perfume" returned products: 0 because
+  // productMatchesIntent filtered against the memory brand "Sahiib",
+  // which "Sahib"-named products don't contain.
+  test('"Sahib" lookup is not filtered out by memory brand "Sahiib"', () => {
+    const result = expandIntent({
+      type: INTENTS.PRODUCT_INFORMATION,
+      query: "Sahib",
+      brand: { id: 123, name: "Sahiib", slug: "sahiib" }, // memory-inherited
+      productType: "perfume", // memory-inherited
+    });
+
+    // No memory-inherited brand/productType retrieval.
+    assert.ok(!result.searches.some((s) => s.type === "brand"));
+    assert.ok(!result.searches.some((s) => s.type === "productType"));
+    assert.ok(!result.brand);
+    assert.ok(!result.productType);
+
+    // The keyword search targets what the user actually typed.
+    assert.equal(result.expandedQuery, "sahib");
+    const keyword = result.searches.find((s) => s.type === "keyword");
+    assert.equal(keyword.value, "sahib");
+  });
+
+  test("memory-inherited productType is neutralized when not in query", () => {
+    const result = expandIntent({
+      type: INTENTS.PRODUCT_SEARCH,
+      query: "looking for candles",
+      productType: "perfume", // memory-inherited, not mentioned
+    });
+
+    assert.ok(!result.searches.some((s) => s.type === "productType"));
+    assert.ok(!result.productType);
+    assert.equal(result.expandedQuery, "candles");
+  });
+
+  test("memory-inherited categoryGroup is neutralized when not in query", () => {
+    const result = expandIntent({
+      type: INTENTS.CATEGORY,
+      query: "show me everything",
+      categoryGroup: { slug: "gift-set" }, // memory-inherited, not mentioned
+    });
+
+    assert.ok(!result.searches.some((s) => s.type === "category"));
+    assert.ok(!result.categoryGroup);
+  });
+
+  test("entities ARE kept when genuinely mentioned in the current query", () => {
+    // Positive control: when the user does mention the brand + productType,
+    // both retrieval searches must fire. This guards against over-aggressive
+    // stripping that would break legitimate product searches.
+    const result = expandIntent({
+      type: INTENTS.PRODUCT_SEARCH,
+      query: "Olay perfumes",
+      brand: { name: "Olay" },
+      productType: "perfume",
+    });
+
+    assert.ok(result.searches.some((s) => s.type === "brand"));
+    assert.ok(result.searches.some((s) => s.type === "productType"));
+    assert.equal(result.brand.name, "Olay");
+    assert.equal(result.productType, "perfume");
   });
 });
 
