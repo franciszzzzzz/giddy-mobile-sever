@@ -1,5 +1,5 @@
-import memoryStore from "./memoryStore.js";
 import { getConversation } from "./conversationMemory.js";
+import memoryStore from "./memoryStore.js";
 
 export function updateConversation(
   sessionId,
@@ -8,9 +8,9 @@ export function updateConversation(
   const memory = getConversation(sessionId);
 
   //
-  // --------------------------------------------------
+  // -----------------------------
   // Intent
-  // --------------------------------------------------
+  // -----------------------------
   //
 
   if (intent?.type) {
@@ -18,9 +18,9 @@ export function updateConversation(
   }
 
   //
-  // --------------------------------------------------
+  // -----------------------------
   // Brand
-  // --------------------------------------------------
+  // -----------------------------
   //
 
   if (entities?.brand) {
@@ -32,29 +32,19 @@ export function updateConversation(
   }
 
   //
-  // --------------------------------------------------
+  // -----------------------------
   // Category
-  // --------------------------------------------------
-  //
-
-  if (entities?.category) {
-    memory.lastCategory = entities.category;
-  }
-
-  //
-  // --------------------------------------------------
-  // Category Group
-  // --------------------------------------------------
+  // -----------------------------
   //
 
   if (entities?.categoryGroup) {
-    memory.lastCategoryGroup = entities.categoryGroup;
+    memory.lastCategory = entities.categoryGroup;
   }
 
   //
-  // --------------------------------------------------
+  // -----------------------------
   // Product Type
-  // --------------------------------------------------
+  // -----------------------------
   //
 
   if (entities?.productType) {
@@ -62,9 +52,9 @@ export function updateConversation(
   }
 
   //
-  // --------------------------------------------------
+  // -----------------------------
   // Gender
-  // --------------------------------------------------
+  // -----------------------------
   //
 
   if (entities?.gender) {
@@ -72,9 +62,9 @@ export function updateConversation(
   }
 
   //
-  // --------------------------------------------------
+  // -----------------------------
   // Occasion
-  // --------------------------------------------------
+  // -----------------------------
   //
 
   if (entities?.occasion) {
@@ -82,9 +72,9 @@ export function updateConversation(
   }
 
   //
-  // --------------------------------------------------
-  // Fragrance Note
-  // --------------------------------------------------
+  // -----------------------------
+  // Note
+  // -----------------------------
   //
 
   if (entities?.note) {
@@ -92,9 +82,9 @@ export function updateConversation(
   }
 
   //
-  // --------------------------------------------------
+  // -----------------------------
   // Recipient
-  // --------------------------------------------------
+  // -----------------------------
   //
 
   if (entities?.recipient) {
@@ -102,9 +92,9 @@ export function updateConversation(
   }
 
   //
-  // --------------------------------------------------
+  // -----------------------------
   // Budget
-  // --------------------------------------------------
+  // -----------------------------
   //
 
   if (entities?.budget != null) {
@@ -120,32 +110,24 @@ export function updateConversation(
   }
 
   //
-  // --------------------------------------------------
+  // -----------------------------
   // Retrieved Products
-  // --------------------------------------------------
+  // -----------------------------
   //
 
   if (context?.products?.length) {
     memory.lastProducts = context.products;
-
-    // Remember the first product shown
     memory.lastProduct = context.products[0];
   }
-
-  //
-  // --------------------------------------------------
-  // Explicit Product Selection
-  // --------------------------------------------------
-  //
 
   if (intent?.product) {
     memory.lastProduct = intent.product;
   }
 
   //
-  // --------------------------------------------------
-  // Product Comparison
-  // --------------------------------------------------
+  // -----------------------------
+  // Comparison
+  // -----------------------------
   //
 
   if (intent?.type === "PRODUCT_COMPARISON" && context?.products?.length >= 2) {
@@ -153,21 +135,31 @@ export function updateConversation(
   }
 
   //
-  // --------------------------------------------------
+  // -----------------------------
   // Conversation History
-  // --------------------------------------------------
+  // -----------------------------
   //
 
-  if (userMessage || assistantMessage) {
+  if (userMessage) {
     memory.history.push({
-      user: userMessage,
-      assistant: assistantMessage,
-      timestamp: Date.now(),
+      role: "user",
+      content: userMessage,
     });
+  }
 
-    if (memory.history.length > 15) {
-      memory.history.shift();
-    }
+  if (assistantMessage) {
+    memory.history.push({
+      role: "assistant",
+      content: assistantMessage,
+    });
+  }
+
+  //
+  // Keep last 20 messages
+  //
+
+  if (memory.history.length > 20) {
+    memory.history = memory.history.slice(-20);
   }
 
   memoryStore.set(sessionId, memory);
