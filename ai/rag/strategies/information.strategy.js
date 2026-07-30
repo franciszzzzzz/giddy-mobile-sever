@@ -1,49 +1,40 @@
-import formatter from "../productFormatter.js";
 import { retrieve } from "../retrieval.service.js";
 
 /**
  * Product Information Strategy
  *
- * Retrieves a specific product (or the closest matching one)
- * using the shared RAG retrieval pipeline.
+ * Retrieves matching products using the shared RAG retrieval pipeline and
+ * surfaces them so the LLM prompt and the frontend product carousel both
+ * receive them.
+ *
+ * The primary product (context.product, or the first retrieved one) is kept
+ * on `product` for detail-style consumers; the full retrieved list is kept on
+ * `products`.
+ *
+ * `retrieve()` already formats the products via productFormatter, so they are
+ * returned here as-is without re-formatting.
  */
 async function execute(intent) {
   const context = await retrieve(intent);
 
-  //
-  // --------------------------------------------------
-  // If memory already resolved a specific product
-  // --------------------------------------------------
-  //
-
-  if (context.product) {
-    return {
-      source: "information",
-
-      products: [],
-
-      product: formatter.formatProduct(context.product),
-
-      brands: context.brands || [],
-
-      categories: context.categories || [],
-    };
-  }
+  const products = context.products || [];
 
   //
   // --------------------------------------------------
-  // Otherwise use the first retrieved product
+  // Primary product
   // --------------------------------------------------
   //
-
-  const product = context.products?.[0] || null;
+  // Prefer a memory-resolved specific product, falling back to the first
+  // retrieved one.
+  //
+  const product = context.product || products[0] || null;
 
   return {
     source: "information",
 
-    products: [],
+    products,
 
-    product: product ? formatter.formatProduct(product) : null,
+    product,
 
     brands: context.brands || [],
 
@@ -54,3 +45,4 @@ async function execute(intent) {
 export default {
   execute,
 };
+
