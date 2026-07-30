@@ -1,6 +1,5 @@
 import express from "express";
 import { roleBasedAccess, verifyUserAuth } from "../middleware/userAuth.js";
-import { upload } from "../middleware/multer.js";
 import {
   getUserDetails,
   loginUser,
@@ -16,7 +15,7 @@ import {
 
 const router = express.Router();
 router.get("/health", healthCheck);
-router.route("/register").post(upload.single("avatar"), registerUser);
+router.route("/register").post(registerUser);
 router.route("/login").post(loginUser);
 router.route("/refresh-token").post(refreshAccessToken);
 router.route("/logout").post(logoutUser);

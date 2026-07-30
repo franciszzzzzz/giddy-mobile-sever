@@ -16,7 +16,6 @@ import {
   searchProducts,
 } from "../controllers/productController.js";
 import { cache, cacheDebugger } from "../middleware/cache.js";
-import { upload } from "../middleware/multer.js";
 import { roleBasedAccess, verifyUserAuth } from "../middleware/userAuth.js";
 import { CACHE_TTL } from "../utils/cacheUtils.js";
 const router = express.Router();
