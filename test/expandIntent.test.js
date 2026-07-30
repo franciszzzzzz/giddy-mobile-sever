@@ -127,16 +127,39 @@ describe("expandIntent — product keyword building", () => {
     assert.equal(result.expandedQuery, "perfume genie storm perfumes");
   });
 
-  test("builds keyword from brand + productType when both are mentioned", () => {
+  test("excludes a brand that is NOT mentioned (even loosely) in the query", () => {
+    const result = expandIntent({
+      type: INTENTS.PRODUCT_INFORMATION,
+      query: "Sahib",
+      brand: { id: 123, name: "Genie", slug: "genie" },
+    });
+
+    // Brand "Genie" is unrelated to the query "Sahib" (no literal or fuzzy
+    // match), so it is excluded from the keyword. Only the stripped word
+    // "sahib" remains.
+    assert.equal(result.expandedQuery, "sahib");
+  });
+
+  test("keeps a fuzzy-matched brand whose stored name differs from the query", () => {
+    // Regression for the production logs: query "Sahib" with detected brand
+    // "Sahiib" must keep the brand so the dedicated brand retrieval can run.
+    // A literal-substring check would drop it and leave only an ineffective
+    // keyword search that returns 0 products.
     const result = expandIntent({
       type: INTENTS.PRODUCT_INFORMATION,
       query: "Sahib",
       brand: { id: 123, name: "Sahiib", slug: "sahiib" },
     });
 
-    // Brand "Sahiib" is NOT in the query, so it is excluded from keyword
-    // and searches. Only the stripped word "sahib" remains.
-    assert.equal(result.expandedQuery, "sahib");
+    // The brand IS mentioned (fuzzy match), so it drives a brand search...
+    assert.ok(
+      result.searches.some((s) => s.type === "brand"),
+      "fuzzy-detected brand must drive a brand search",
+    );
+    assert.equal(result.brand.name, "Sahiib");
+
+    // ...and is prepended to the keyword.
+    assert.equal(result.expandedQuery, "Sahiib sahib");
   });
 
   test("prepends brand name when brand IS mentioned in the query", () => {
@@ -341,6 +364,47 @@ describe("expandIntent — searches array", () => {
   });
 });
 
+describe("expandIntent — fuzzy & multi-word brand mentions", () => {
+  // These cover the production failure where every brand query returned
+  // products: 0. A fuzzy-detected brand whose stored name differs from the
+  // typed text (e.g. "Sahib" -> "Sahiib") must survive the mention check so
+  // the dedicated brand retrieval fires.
+  test("keeps a typo'd brand mentioned inside a phrase", () => {
+    const result = expandIntent({
+      type: INTENTS.PRODUCT_SEARCH,
+      query: "show me sahib perfumes",
+      brand: { id: 123, name: "Sahiib", slug: "sahiib" },
+    });
+
+    assert.ok(result.searches.some((s) => s.type === "brand"));
+    assert.equal(result.brand.name, "Sahiib");
+    assert.ok(result.expandedQuery.toLowerCase().includes("sahib"));
+  });
+
+  test("keeps a multi-word brand mentioned in the query", () => {
+    const result = expandIntent({
+      type: INTENTS.PRODUCT_SEARCH,
+      query: "do you have oudh al mubaarak",
+      brand: { id: 99, name: "Oudh Al Mubaarak", slug: "oudh-al-mubaarak" },
+    });
+
+    assert.ok(result.searches.some((s) => s.type === "brand"));
+    assert.equal(result.brand.name, "Oudh Al Mubaarak");
+  });
+
+  test("drops a brand whose name does not fuzzy-match the query", () => {
+    // "sahib" is not close enough to "lattafa", so the brand must be dropped.
+    const result = expandIntent({
+      type: INTENTS.PRODUCT_SEARCH,
+      query: "sahib",
+      brand: { id: 5, name: "Lattafa", slug: "lattafa" },
+    });
+
+    assert.ok(!result.searches.some((s) => s.type === "brand"));
+    assert.ok(!result.brand);
+  });
+});
+
 describe("expandIntent — regression: memory entities must not pollute retrieval", () => {
   // These mirror real production logs where a brand/productType inherited
   // from conversation memory fired unrelated retrieval searches.
@@ -373,15 +437,15 @@ describe("expandIntent — regression: memory entities must not pollute retrieva
     assert.equal(keyword.value, "new arrivals");
   });
 
-  // Log scenario 2: query "Sahib" (PRODUCT_INFORMATION) with memory
-  // brand "Sahiib" + productType "perfume" returned products: 0 because
-  // productMatchesIntent filtered against the memory brand "Sahiib",
-  // which "Sahib"-named products don't contain.
-  test('"Sahib" lookup is not filtered out by memory brand "Sahiib"', () => {
+  // Log scenario 2: a memory-inherited brand that is UNRELATED to the current
+  // query must be dropped. Uses an unrelated brand ("Genie") because a
+  // typo-close memory brand (e.g. "Sahiib") now legitimately fuzzy-matches a
+  // "Sahib" query and is therefore kept — see the positive fuzzy-brand tests.
+  test('"Sahib" lookup drops an unrelated memory brand "Genie"', () => {
     const result = expandIntent({
       type: INTENTS.PRODUCT_INFORMATION,
       query: "Sahib",
-      brand: { id: 123, name: "Sahiib", slug: "sahiib" }, // memory-inherited
+      brand: { id: 123, name: "Genie", slug: "genie" }, // memory-inherited, unrelated
       productType: "perfume", // memory-inherited
     });
 

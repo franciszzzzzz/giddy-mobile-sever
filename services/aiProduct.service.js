@@ -1,6 +1,7 @@
 import { wc } from "../config/db.js";
 import logger from "../utils/logger.js";
 import { getCache, setCache, CACHE_TTL } from "../utils/cacheUtils.js";
+import redisClient from "../config/redis.js";
 
 import resolveFuzzyValue from "../ai/rag/helpers/resolveFuzzyValue.js";
 
@@ -12,21 +13,66 @@ const buildCacheKey = (prefix, data = {}) => {
 };
 
 /**
+ * Returns true when a retrieval result should be treated as an "empty" hit
+ * (no products, missing item) and cached for the short negative window.
+ */
+function isEmptyResult(data) {
+  return (
+    data == null ||
+    data === "" ||
+    (Array.isArray(data) && data.length === 0) ||
+    (typeof data === "object" && Object.keys(data).length === 0)
+  );
+}
+
+/**
  * Generic cache wrapper.
+ *
+ * Empty results (no products, missing item) are cached for the short negative
+ * window (CACHE_TTL.NEGATIVE) instead of the full TTL. This prevents a
+ * known-empty lookup from hammering WooCommerce on retries while still letting
+ * catalog fixes / re-tags appear within a minute rather than sticking for an
+ * hour.
+ *
+ * Key presence is checked directly against Redis so a cached empty value
+ * (including null) is served as a hit — without this, JSON.parse("null") would
+ * round-trip back to null and look like a miss, defeating the negative cache.
+ *
+ * Thrown errors are never cached — a WooCommerce outage must not freeze in.
  */
 async function withCache(cacheKey, ttl, fetcher) {
-  const cached = await getCache(cacheKey);
+  //
+  // ------------------------------------
+  // Read-through: serve any existing entry, including empty ones
+  // ------------------------------------
+  //
+  const exists = await redisClient.exists(cacheKey);
 
-  if (cached) {
+  if (exists) {
+    const cached = await getCache(cacheKey);
+
     logger.info(`AI Cache Hit -> ${cacheKey}`);
+
     return cached;
   }
 
   logger.info(`AI Cache Miss -> ${cacheKey}`);
 
+  //
+  // ------------------------------------
+  // Fetch from source
+  // ------------------------------------
+  //
   const data = await fetcher();
 
-  await setCache(cacheKey, data, ttl);
+  //
+  // ------------------------------------
+  // Negative cache empties briefly; positive results get the full TTL
+  // ------------------------------------
+  //
+  const effectiveTtl = isEmptyResult(data) ? CACHE_TTL.NEGATIVE : ttl;
+
+  await setCache(cacheKey, data, effectiveTtl);
 
   return data;
 }

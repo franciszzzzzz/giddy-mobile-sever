@@ -124,4 +124,10 @@ export const CACHE_TTL = {
   FEATURED_PRODUCTS: 30 * 60,
   PRODUCT_OF_THE_WEEK: 6 * 60 * 60, // 6 hrs
   WP_TOKEN: 24 * 60 * 60, // 24 hours
+
+  // Short window for caching "empty" results (no products found, missing
+  // item). Keeps a known-empty result out of WooCommerce for a minute so a
+  // user retry loop can't hammer the API, while still letting catalog fixes
+  // or re-tags appear quickly instead of sticking for an hour.
+  NEGATIVE: 60, // 1 minute
 };

@@ -1,3 +1,5 @@
+import Fuse from "fuse.js";
+
 import { INTENTS } from "../../constants/intents.js";
 
 import productTypes from "../../agent/dictionaries/productTypes.js";
@@ -96,6 +98,16 @@ const NON_PRODUCT_INTENTS = [
  * because they rely on conversation memory, not new searches.
  */
 const PASS_THROUGH_INTENTS = [INTENTS.FOLLOW_UP];
+
+/**
+ * Score gate and max window size for fuzzy brand-mention checks.
+ *
+ * Kept in sync with the detection layer in entityExtractor.js so a brand
+ * detected upstream ("Sahib" -> "Sahiib") is not stripped here by a strict
+ * literal substring test.
+ */
+const BRAND_MATCH_THRESHOLD = 0.4;
+const MAX_BRAND_WORDS = 3;
 
 /**
  * Strips conversational filler from a query string,
@@ -259,6 +271,69 @@ function isMentionedInQuery(query, term) {
 }
 
 /**
+ * Checks whether a brand was mentioned in the current query.
+ *
+ * The generic isMentionedInQuery() uses a literal substring test, which drops
+ * any fuzzy-detected brand whose stored name differs from the typed token —
+ * e.g. a query "Sahib" against detected brand "Sahiib". Because brand detection
+ * is intentionally typo-tolerant, the mention check must be too; otherwise the
+ * detected brand is neutralized before retrieval and only an ineffective keyword
+ * search fires.
+ *
+ * Accepts the mention when either:
+ *  - the literal substring (or multi-word fallback) matches, OR
+ *  - any query token / window fuzzy-matches the brand name within the score gate.
+ *
+ * Memory-inherited brands the user did NOT mention still fail both checks and
+ * are correctly stripped, preserving the regression-protection behavior.
+ *
+ * @param {string} query - The original user query
+ * @param {Object} brand - { name, slug? }
+ * @returns {boolean}
+ */
+function isBrandMentionedInQuery(query, brand) {
+  if (!query || !brand?.name) {
+    return false;
+  }
+
+  if (isMentionedInQuery(query, brand.name)) {
+    return true;
+  }
+
+  const queryLower = query.toLowerCase();
+
+  const tokens = queryLower
+    .replace(/[^\w\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const fuse = new Fuse(
+    [{ name: brand.name.toLowerCase(), slug: (brand.slug || "").toLowerCase() }],
+    {
+      keys: ["name", "slug"],
+      threshold: BRAND_MATCH_THRESHOLD,
+      ignoreLocation: true,
+      includeScore: true,
+      minMatchCharLength: 2,
+    },
+  );
+
+  for (let size = 1; size <= MAX_BRAND_WORDS; size++) {
+    for (let start = 0; start + size <= tokens.length; start++) {
+      const phrase = tokens.slice(start, start + size).join(" ");
+
+      const result = fuse.search(phrase);
+
+      if (result.length && result[0].score <= BRAND_MATCH_THRESHOLD) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
  * Checks whether a product type was mentioned in the query
  * by looking at all its aliases.
  *
@@ -400,7 +475,7 @@ function buildKeywordSearchTerm(intent) {
   // Brand — only if mentioned in current query
   // -------------------------
   //
-  if (intent.brand?.name && isMentionedInQuery(query, intent.brand.name)) {
+  if (intent.brand?.name && isBrandMentionedInQuery(query, intent.brand)) {
     parts.push(intent.brand.name);
   }
 
@@ -531,7 +606,7 @@ function getCurrentQueryEntities(intent) {
   // Brand — only if its name appears in the current query
   // -------------------------
   //
-  if (intent.brand?.name && isMentionedInQuery(query, intent.brand.name)) {
+  if (intent.brand?.name && isBrandMentionedInQuery(query, intent.brand)) {
     result.brand = intent.brand;
   }
 

@@ -49,7 +49,7 @@ function detectBudget(text) {
 }
 
 function detectPriceRange(text) {
-  const range = text.match(/between\s*₦?\s*([\d,]+)\s*and\s*₦?\s*([\d,]+)/i);
+  const range = text.match(/between\s*₦?\s*([\d,]+)\s+and\s*₦?\s*([\d,]+)/i);
 
   if (!range) {
     return {
@@ -61,6 +61,102 @@ function detectPriceRange(text) {
   return {
     minPrice: Number(range[1].replace(/,/g, "")),
     maxPrice: Number(range[2].replace(/,/g, "")),
+  };
+}
+
+/**
+ * Max number of words a single brand name can span.
+ *
+ * Brand names like "Oudh Al Mubaarak" are three words, so the
+ * sliding window needs to consider up to three consecutive tokens.
+ */
+const MAX_BRAND_WORDS = 3;
+
+/**
+ * Score below which a Fuse brand match is accepted.
+ *
+ * 0.4 tolerates common typos ("Sahib" -> "Sahiib") and minor
+ * spelling drift while rejecting unrelated short tokens.
+ */
+const BRAND_MATCH_THRESHOLD = 0.4;
+
+/**
+ * Detects brands mentioned in the message using a fuzzy sliding-window scan.
+ *
+ * The previous implementation ran a single Fuse search over the ENTIRE message
+ * string, which only matched when the message was essentially just the brand
+ * name. Any conversational phrase ("show me sahib", "i want lattafa perfumes")
+ * failed to match because Fuse scored the full text.
+ *
+ * This mirrors the proven pattern in fuzzyDictionaryMatcher.js: tokenize the
+ * message, then test 1- to MAX_BRAND_WORDS-word sliding windows against the
+ * brand dictionary. The single best-scoring match becomes `brand`; the top two
+ * distinct matches populate `comparisonProducts`.
+ *
+ * @param {string} message - Raw user message
+ * @param {Array} brands - [{ id, name, slug }]
+ * @returns {Object} { brand, comparisonProducts }
+ */
+function detectBrands(message, brands) {
+  if (!brands.length) {
+    return { brand: null, comparisonProducts: [] };
+  }
+
+  const fuse = new Fuse(brands, {
+    keys: ["name", "slug"],
+    threshold: BRAND_MATCH_THRESHOLD,
+    ignoreLocation: true,
+    includeScore: true,
+    minMatchCharLength: 2,
+  });
+
+  const tokens = message
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+
+  // Collect every (score, match) pair across all windows, then pick the best.
+  const hits = [];
+
+  for (let size = 1; size <= MAX_BRAND_WORDS; size++) {
+    for (let start = 0; start + size <= tokens.length; start++) {
+      const phrase = tokens.slice(start, start + size).join(" ");
+
+      const result = fuse.search(phrase);
+
+      if (result.length && result[0].score <= BRAND_MATCH_THRESHOLD) {
+        hits.push({ score: result[0].score, item: result[0].item });
+      }
+    }
+  }
+
+  if (!hits.length) {
+    return { brand: null, comparisonProducts: [] };
+  }
+
+  // Sort best (lowest) score first, then de-duplicate by brand id.
+  hits.sort((a, b) => a.score - b.score);
+
+  const seen = new Set();
+  const unique = [];
+
+  for (const hit of hits) {
+    if (seen.has(hit.item.id)) {
+      continue;
+    }
+
+    seen.add(hit.item.id);
+    unique.push(hit.item);
+
+    if (unique.length >= 2) {
+      break;
+    }
+  }
+
+  return {
+    brand: unique[0],
+    comparisonProducts: unique,
   };
 }
 
@@ -90,19 +186,12 @@ export default async function extractEntities(message) {
 
   const brands = await brandDictionary.getBrands();
 
-  const fuse = new Fuse(brands, {
-    keys: ["name", "slug"],
-    threshold: 0.3,
-  });
+  const { brand, comparisonProducts } = detectBrands(message, brands);
 
-  const results = fuse.search(message);
+  entities.brand = brand;
 
-  if (results.length) {
-    entities.brand = results[0].item;
-
-    if (results.length >= 2) {
-      entities.comparisonProducts = [results[0].item, results[1].item];
-    }
+  if (comparisonProducts.length >= 2) {
+    entities.comparisonProducts = comparisonProducts;
   }
 
   //
