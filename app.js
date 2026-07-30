@@ -12,7 +12,7 @@ import order from "./routes/orderRoute.js";
 import cartRoutes from "./routes/cartRoutes.js";
 import wishlistRoute from "./routes/wishlistRoute.js";
 import paystackRoutes from "./routes/paystackRoutes.js";
-import messageRoutes from "./routes/messageRoutes.js";
+
 import notificationRoutes from "./routes/notificationRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
 
@@ -72,7 +72,6 @@ app.use("/api/v1", order);
 app.use("/api/v1", cartRoutes);
 app.use("/api/v1", wishlistRoute);
 app.use("/api/v1", paystackRoutes);
-app.use("/api/v1", messageRoutes);
 app.use("/api/v1", notificationRoutes);
 app.use("/api/v1", aiRoutes);
 
