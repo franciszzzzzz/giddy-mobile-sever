@@ -3,10 +3,6 @@ import { wc, wp } from "../config/db.js";
 import redisClient from "../config/redis.js";
 import handleAsyncError from "../middleware/handleAsyncError.js";
 import { CACHE_TTL } from "../utils/cacheUtils.js";
-import {
-  deleteFromCloudinary,
-  uploadToCloudinary,
-} from "../utils/cloudinaryService.js";
 import HandleError from "../utils/handleError.js";
 import { sendEmail } from "../utils/sendEmail.js";
 import { createAccessToken, createRefreshToken } from "../utils/token.js";

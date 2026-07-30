@@ -2,7 +2,6 @@ import { wc } from "../config/db.js";
 import handleAsyncError from "../middleware/handleAsyncError.js";
 import productModel from "../models/productModel.js";
 import { clearProductsCache } from "../utils/cacheUtils.js";
-import { uploadToCloudinary } from "../utils/cloudinaryService.js";
 import HandleError from "../utils/handleError.js";
 
 export const testMainRedis = async (req, res) => {
