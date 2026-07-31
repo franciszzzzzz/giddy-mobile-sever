@@ -8,15 +8,18 @@ import { sendEmail } from "../utils/sendEmail.js";
 import { createAccessToken, createRefreshToken } from "../utils/token.js";
 import { log } from "console";
 import axios from "axios";
+import NotificationService from "../services/notification.service.js";
+
 //register user
 export const registerUser = handleAsyncError(async (req, res, next) => {
   const { name, email, password } = req.body;
+
   if (!name || !email || !password) {
     return next(new HandleError("All fields are required", 400));
   }
 
   try {
-    // WooCommerce creates WP customer
+    // WooCommerce creates the WordPress customer
     const response = await wc.post("/customers", {
       email,
       username: email,
@@ -24,26 +27,39 @@ export const registerUser = handleAsyncError(async (req, res, next) => {
       password,
     });
 
+    const customer = response.data;
+
+    // Send welcome notification (don't let failures affect registration)
+    try {
+      await NotificationService.send({
+        userId: customer.id,
+        title: "🎉 Welcome to Giddy & Claire",
+        body: `Hi ${customer.first_name}, welcome to Giddy & Claire! We're excited to have you with us.`,
+        type: "system",
+        data: {
+          screen: "Home",
+        },
+      });
+    } catch (error) {
+      console.error("Failed to send welcome notification:", error);
+    }
+
     return res.status(201).json({
       success: true,
-
       message: "User registered successfully",
-
-      user: response.data,
+      user: customer,
     });
   } catch (error) {
     console.error("REGISTER ERROR:", error.response?.data || error.message);
 
     const wcError = error.response?.data;
 
-    // Email already exists
     if (wcError?.code === "registration-error-email-exists") {
       return next(
         new HandleError("An account with this email already exists.", 409),
       );
     }
 
-    // Username already exists
     if (wcError?.code === "registration-error-username-exists") {
       return next(
         new HandleError("An account with this email already exists.", 409),

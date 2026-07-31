@@ -1,6 +1,7 @@
 import DeviceToken from "../models/DeviceToken.js";
 import HandleError from "../utils/handleError.js";
 import handleAsyncError from "../middleware/handleAsyncError.js";
+import NotificationService from "../services/notification.service.js";
 
 export const registerDeviceToken = handleAsyncError(async (req, res, next) => {
   const { token, platform, deviceName, appVersion } = req.body;
@@ -39,5 +40,23 @@ export const registerDeviceToken = handleAsyncError(async (req, res, next) => {
   res.status(201).json({
     success: true,
     message: "Device token registered.",
+  });
+});
+
+export const sendTestNotification = handleAsyncError(async (req, res) => {
+  const notification = await NotificationService.send({
+    userId: req.user.id,
+    title: "🎉 Welcome to Giddy & Claire",
+    body: "Congratulations! Your push notifications are working.",
+    type: "system",
+    data: {
+      screen: "Home",
+    },
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Test notification sent.",
+    notification,
   });
 });

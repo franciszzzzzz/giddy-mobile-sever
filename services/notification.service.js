@@ -5,8 +5,11 @@ import DeviceToken from "../models/DeviceToken.js";
 const expo = new Expo();
 
 class NotificationService {
-  async send({ userId, title, body, type = "system", data = {} }) {
-    // 1. Save notification to MongoDB
+  /**
+   * Send a notification to a single user.
+   */
+  async send({ userId, title, body, type = "system", data = {}, push = true }) {
+    // Save notification
     const notification = await Notification.create({
       userId,
       title,
@@ -16,13 +19,112 @@ class NotificationService {
       sentAt: new Date(),
     });
 
-    // 2. Find all user's devices
+    if (!push) {
+      return {
+        success: true,
+        notification,
+        tickets: [],
+      };
+    }
+
+    // Get user's devices
     const devices = await DeviceToken.find({ userId });
 
     if (!devices.length) {
-      return notification;
+      return {
+        success: true,
+        notification,
+        tickets: [],
+      };
     }
 
+    const messages = [];
+
+    for (const device of devices) {
+      if (!Expo.isExpoPushToken(device.token)) {
+        console.warn(`Invalid Expo Push Token: ${device.token}`);
+        continue;
+      }
+
+      messages.push({
+        to: device.token,
+        sound: "default",
+        title,
+        body,
+        data: {
+          notificationId: notification._id.toString(),
+          ...data,
+        },
+      });
+    }
+
+    if (!messages.length) {
+      return {
+        success: true,
+        notification,
+        tickets: [],
+      };
+    }
+
+    const chunks = expo.chunkPushNotifications(messages);
+
+    const tickets = [];
+
+    for (const chunk of chunks) {
+      try {
+        const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+
+        console.log("Expo Tickets:", ticketChunk);
+
+        tickets.push(...ticketChunk);
+      } catch (error) {
+        console.error("Expo Push Error:", error);
+      }
+    }
+
+    return {
+      success: true,
+      notification,
+      tickets,
+    };
+  }
+
+  /**
+   * Broadcast notification to all users.
+   */
+  async broadcast({ title, body, type = "promotion", data = {} }) {
+    // Get all registered devices
+    const devices = await DeviceToken.find().lean();
+
+    if (!devices.length) {
+      return {
+        success: true,
+        notificationsCreated: 0,
+        tickets: [],
+      };
+    }
+
+    /**
+     * Create ONE notification per user
+     */
+    const uniqueUsers = [
+      ...new Map(devices.map((device) => [device.userId, device])).values(),
+    ];
+
+    const notifications = uniqueUsers.map((user) => ({
+      userId: user.userId,
+      title,
+      body,
+      type,
+      data,
+      sentAt: new Date(),
+    }));
+
+    const createdNotifications = await Notification.insertMany(notifications);
+
+    /**
+     * Send push to EVERY device
+     */
     const messages = [];
 
     for (const device of devices) {
@@ -40,18 +142,35 @@ class NotificationService {
       });
     }
 
-    // 3. Send notifications in chunks
+    if (!messages.length) {
+      return {
+        success: true,
+        notificationsCreated: createdNotifications.length,
+        tickets: [],
+      };
+    }
+
     const chunks = expo.chunkPushNotifications(messages);
+
+    const tickets = [];
 
     for (const chunk of chunks) {
       try {
-        await expo.sendPushNotificationsAsync(chunk);
+        const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+
+        console.log("Expo Broadcast Tickets:", ticketChunk);
+
+        tickets.push(...ticketChunk);
       } catch (error) {
-        console.error("Expo Push Error:", error);
+        console.error("Expo Broadcast Error:", error);
       }
     }
 
-    return notification;
+    return {
+      success: true,
+      notificationsCreated: createdNotifications.length,
+      tickets,
+    };
   }
 }
 
