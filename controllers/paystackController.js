@@ -146,7 +146,7 @@ export const verifyPayment = handleAsyncError(async (req, res, next) => {
       body: `Your payment for Order #${payment.wcOrderId} was successful.`,
       type: "order",
       data: {
-        screen: "OrderDetails",
+        screen: "Home",
         orderId: payment.wcOrderId,
       },
     });
