@@ -6,8 +6,6 @@ const AUTH_HEADER = "X-Backend-Auth-Token";
 const SECRET_TOKEN = process.env.WP_DEV_TOKEN;
 const SOURCE_URL = process.env.RENDER_SERVICE_URL;
 
-console.log("WC INSTANCE URL:", process.env.WC_BASE_URL);
-
 export const connectMongoDb = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI);

@@ -1,0 +1,58 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: giddy-backend
+
+    ports:
+      - "8000:8000"
+
+    env_file:
+      - config/.env
+
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+    depends_on:
+      redis:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+    networks:
+      - giddy-network
+
+  redis:
+    image: redis:7-alpine
+
+    container_name: giddy-redis
+
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 1gb
+      --maxmemory-policy allkeys-lru
+
+    volumes:
+      - redis-data:/data
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    restart: unless-stopped
+
+    networks:
+      - giddy-network
+
+volumes:
+  redis-data:
+
+networks:
+  giddy-network:
+    driver: bridge

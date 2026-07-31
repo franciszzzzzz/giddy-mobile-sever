@@ -99,13 +99,6 @@ export const addToCart = handleAsyncError(async (req, res, next) => {
 
 export const getCart = handleAsyncError(async (req, res, next) => {
   const customerId = req.user.id;
-  // ✅ ADD THIS LOG
-  console.log(
-    "🔍 DEBUG GET CART: Fetching cart for customerId:",
-    customerId,
-    "Email:",
-    req.user.email,
-  );
   // Get Cart
   const cart = await ShoppingCart.findOne({ customerId }).lean();
 

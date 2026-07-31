@@ -7,6 +7,7 @@ import HandleError from "../utils/handleError.js";
 import { sendEmail } from "../utils/sendEmail.js";
 import { createAccessToken, createRefreshToken } from "../utils/token.js";
 import { log } from "console";
+import mongoose from "mongoose";
 import axios from "axios";
 //register user
 export const registerUser = handleAsyncError(async (req, res, next) => {
@@ -72,7 +73,6 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
     });
 
     const wpUser = wpResponse.data;
-    console.log(wpUser);
 
     if (!wpUser.token) {
       return next(new HandleError("Invalid email or password.", 401));
@@ -165,7 +165,10 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
     await redisClient.setEx(
       `user:${user.id}`,
       CACHE_TTL.REFRESH_TOKEN,
-      refreshToken,
+      JSON.stringify({
+        refreshToken,
+        loginAt: Date.now(),
+      }),
     );
 
     //
@@ -278,7 +281,6 @@ export const requestPasswordReset = handleAsyncError(async (req, res, next) => {
 export const resetPassword = handleAsyncError(async (req, res, next) => {
   const { token } = req.params;
   const email = await redisClient.get(`password-reset:${token}`);
-  console.log("EMAIL FROM REDIS:", email);
   if (!email) {
     return next(new HandleError("Invalid token", 400));
   }
@@ -295,13 +297,10 @@ export const resetPassword = handleAsyncError(async (req, res, next) => {
   // });
   try {
     const response = await wc.get("/customers");
-
-    console.log(response.data);
   } catch (err) {
     console.log(err.response?.status);
     console.log(err.response?.data);
   }
-  //console.log(customer.data);
   const user = customer.data[0];
 
   if (!user) {
@@ -470,10 +469,31 @@ export const updateUserProfile = handleAsyncError(async (req, res, next) => {
 });
 
 // GET /api/v1/health
-export const healthCheck = (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "Server is awake",
-    timestamp: Date.now(),
-  });
+export const healthCheck = async (req, res) => {
+  try {
+    const redisHealthy = await redisClient.isReady();
+
+    const mongoHealthy = mongoose.connection.readyState === 1;
+
+    const healthy = redisHealthy && mongoHealthy;
+
+    return res.status(healthy ? 200 : 503).json({
+      success: healthy,
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+
+      services: {
+        api: "healthy",
+        mongodb: mongoHealthy ? "healthy" : "unhealthy",
+        redis: redisHealthy ? "healthy" : "unhealthy",
+      },
+
+      memory: process.memoryUsage(),
+    });
+  } catch (err) {
+    return res.status(503).json({
+      success: false,
+      error: err.message,
+    });
+  }
 };

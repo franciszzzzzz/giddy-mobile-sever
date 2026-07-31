@@ -3,10 +3,7 @@ import { createClient } from "redis";
 import dotenv from "dotenv";
 import path from "path";
 
-// Load environment variables
-if (process.env.NODE_ENV !== "production") {
-  dotenv.config({ path: path.resolve("server/config/.env") });
-}
+dotenv.config({ path: path.resolve("config/.env") });
 
 class RedisClient {
   constructor() {
@@ -16,20 +13,22 @@ class RedisClient {
   }
 
   init() {
-    const redisConfig = {
-      username: process.env.REDIS_USERNAME || "default",
-      password: process.env.REDIS_PASSWORD,
-      socket: {
-        host: process.env.REDIS_HOST || "localhost",
-        port: parseInt(process.env.REDIS_PORT) || 6379,
-        //tls: process.env.REDIS_HOST?.includes("localhost") ? false : {},
-        connectTimeout: 15000,
-        reconnectStrategy: (retries) => {
-          console.log(`🔄 Redis reconnection attempt ${retries}`);
-          return Math.min(retries * 100, 3000);
-        },
-      },
-    };
+    const redisConfig = process.env.REDIS_URL
+      ? {
+          url: process.env.REDIS_URL,
+          socket: {
+            connectTimeout: 15000,
+            reconnectStrategy: (retries) => Math.min(retries * 100, 3000),
+          },
+        }
+      : {
+          socket: {
+            host: process.env.REDIS_HOST || "localhost",
+            port: Number(process.env.REDIS_PORT) || 6379,
+            connectTimeout: 15000,
+            reconnectStrategy: (retries) => Math.min(retries * 100, 3000),
+          },
+        };
 
     console.log("🔗 Initializing Redis connection...");
 
@@ -68,6 +67,18 @@ class RedisClient {
     }
   }
 
+  // ✅ ADDED DISCONNECT METHOD HERE
+  async disconnect() {
+    try {
+      if (this.client?.isOpen) {
+        await this.client.quit();
+        console.log("🔴 Redis connection closed gracefully");
+      }
+    } catch (err) {
+      console.error("❌ Redis disconnect error:", err.message);
+    }
+  }
+
   async get(key) {
     try {
       return await this.client.get(key);
@@ -91,15 +102,12 @@ class RedisClient {
       if (Array.isArray(keys)) {
         return await this.client.del(...keys);
       }
-
       return await this.client.del(keys);
     } catch (error) {
       console.error("❌ Redis DEL error:", error.message);
       return 0;
     }
   }
-
-  // ✅ ADD THESE MISSING METHODS:
 
   async keys(pattern) {
     try {
@@ -133,7 +141,7 @@ class RedisClient {
       return await this.client.ttl(key);
     } catch (error) {
       console.error("❌ Redis TTL error:", error.message);
-      return -2; // -2 means key doesn't exist
+      return -2;
     }
   }
 
@@ -150,7 +158,6 @@ class RedisClient {
     try {
       await this.client.ping();
       const info = await this.client.info("memory");
-
       return {
         healthy: true,
         connected: this.isConnected,

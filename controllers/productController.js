@@ -61,16 +61,8 @@ export const checkCacheManually = async (req, res) => {
       .find()
       .sort({ createdAt: -1 })
       .limit(5);
-    console.log("🗄️ Database has", dbProducts.length, "products");
-    console.log(
-      "📝 Latest products in DB:",
-      dbProducts.map((p) => p.name),
-    );
-
     // Check all Redis keys
     const allKeys = await redisClient.keys("*");
-    console.log("🔑 All Redis keys:", allKeys);
-
     console.log("🔍 [MANUAL CACHE CHECK] ===== END =====");
 
     res.json({
@@ -794,9 +786,6 @@ export const createReviewForProduct = handleAsyncError(
       reviewer: req.user.firstName,
       reviewer_email: req.user.email,
     });
-    console.log("REQ USER:", req.user);
-    console.log("Reviewer:", req.user.name);
-    console.log("Reviewer Email:", req.user.email);
     res.status(201).json({
       success: true,
       review: response.data,
