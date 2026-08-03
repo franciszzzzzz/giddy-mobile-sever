@@ -50,14 +50,38 @@ function mapErrorCode(status) {
 
 /**
  * Validates DeepSeek response structure.
+ *
+ * DeepSeek reasoning models sometimes return the answer in
+ * `message.reasoning_content` while leaving `message.content` empty ("").
+ * A response is valid as long as EITHER field carries non-empty text.
  */
 function isValidResponse(data) {
-  return (
-    data &&
-    Array.isArray(data.choices) &&
-    data.choices.length > 0 &&
-    data.choices[0]?.message?.content
-  );
+  if (
+    !data ||
+    !Array.isArray(data.choices) ||
+    data.choices.length === 0
+  ) {
+    return false;
+  }
+
+  const message = data.choices[0]?.message;
+
+  return Boolean(message && (message.content || message.reasoning_content));
+}
+
+/**
+ * Extracts the usable text from a DeepSeek choice.
+ *
+ * Prefers `content` (the final answer). Falls back to `reasoning_content`
+ * when `content` is empty, which happens with some DeepSeek reasoning
+ * responses — without this fallback the whole response was rejected as
+ * INVALID_RESPONSE and the request silently fell through to the next
+ * provider.
+ */
+function extractText(choice) {
+  const message = choice?.message || {};
+
+  return message.content || message.reasoning_content || "";
 }
 
 /**
@@ -65,7 +89,7 @@ function isValidResponse(data) {
  * 3. Updated model validation for DeepSeek models
  */
 function supports(model) {
-  return model === MODELS.DEEPSEEK_V4_FLASH;
+  return model === MODELS.DEEPSEEK_CHAT;
 }
 
 /**
@@ -125,7 +149,7 @@ async function generate({
 
       latency: Date.now() - startedAt,
 
-      text: response.data.choices[0].message.content,
+      text: extractText(response.data.choices[0]),
 
       usage: {
         promptTokens: usage.prompt_tokens || 0,

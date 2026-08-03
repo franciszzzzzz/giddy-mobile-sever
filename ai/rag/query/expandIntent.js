@@ -94,6 +94,108 @@ const NON_PRODUCT_INTENTS = [
 ];
 
 /**
+ * Negation words. When one of these precedes a term, that term is something
+ * the user does NOT want, so it must be dropped from the keyword search and
+ * must not trigger a brand/productType retrieval search.
+ *
+ * Example: "no i don't want nashein something more elegant" -> the
+ * memory-inherited brand "Nashein" is rejected by the user and must be
+ * excluded; without this, the old code searched for "Nashein" and returned
+ * the exact products the user just refused.
+ */
+const NEGATION_WORDS = new Set([
+  "no",
+  "not",
+  "dont",
+  "dontt",
+  "without",
+  "exclude",
+  "except",
+  "rather",
+  "instead",
+]);
+
+/**
+ * Common English contractions expanded to their full forms so the negation
+ * check (and filler stripping) sees the real word. The apostrophe would
+ * otherwise be turned into a space by stripFiller's punctuation filter,
+ * producing fragments like "don" that survive into the search term.
+ */
+function expandContractions(text) {
+  if (!text) return "";
+
+  return text
+    .toLowerCase()
+    .replace(/\bdon['’]t\b/g, "do not")
+    .replace(/\bdoesn['’]t\b/g, "does not")
+    .replace(/\bisn['’]t\b/g, "is not")
+    .replace(/\baren['’]t\b/g, "are not")
+    .replace(/\bwasn['’]t\b/g, "was not")
+    .replace(/\bweren['’]t\b/g, "were not")
+    .replace(/\bwon['’]t\b/g, "will not")
+    .replace(/\bcan['’]t\b/g, "can not")
+    .replace(/\bcannot\b/g, "can not")
+    .replace(/\bcouldn['’]t\b/g, "could not")
+    .replace(/\bshouldn['’]t\b/g, "should not")
+    .replace(/\bwouldn['’]t\b/g, "would not")
+    .replace(/\bno['’]/g, "no");
+}
+
+/**
+ * Returns the set of query tokens that are negated (preceded by a negation
+ * word) plus any multi-word entity names that contain a negated token.
+ *
+ * Used to suppress negated terms from the keyword search and to neutralize
+ * a memory-inherited brand the user has explicitly rejected.
+ *
+ * @param {string} query - Original user query
+ * @returns {Set<string>} lower-cased negated tokens
+ */
+function getNegatedTokens(query) {
+  if (!query) return new Set();
+
+  const expanded = expandContractions(query);
+
+  // Drop punctuation, then tokenize.
+  const tokens = expanded
+    .replace(/[^\w\s-]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const negated = new Set();
+
+  for (let i = 0; i < tokens.length; i++) {
+    if (NEGATION_WORDS.has(tokens[i]) && i + 1 < tokens.length) {
+      // Mark the immediately following token (the rejected thing).
+      negated.add(tokens[i + 1]);
+    }
+  }
+
+  return negated;
+}
+
+/**
+ * Checks whether a term (brand name, product type alias, etc.) has been
+ * negated by the user in the current query.
+ *
+ * @param {Set<string>} negatedTokens
+ * @param {string} term
+ * @returns {boolean}
+ */
+function isNegated(negatedTokens, term) {
+  if (!term || negatedTokens.size === 0) return false;
+
+  const termLower = term.toLowerCase();
+
+  // Direct hit on the term, or any word of a multi-word term.
+  if (negatedTokens.has(termLower)) return true;
+
+  return termLower
+    .split(/\s+/)
+    .some((word) => word.length > 2 && negatedTokens.has(word));
+}
+
+/**
  * Intents that should pass through without expansion
  * because they rely on conversation memory, not new searches.
  */
@@ -121,7 +223,10 @@ function stripFiller(query) {
     return "";
   }
 
-  let cleaned = query.toLowerCase();
+  // Expand contractions FIRST so "don't" -> "do not" before the apostrophe
+  // is stripped. Otherwise the apostrophe becomes a space and produces
+  // fragments like "don" that leak into the keyword search.
+  let cleaned = expandContractions(query);
 
   // Remove currency amounts (₦50,000, 50000, etc.)
   cleaned = cleaned.replace(/₦\s*[\d,]+/g, "");
@@ -130,11 +235,16 @@ function stripFiller(query) {
   cleaned = cleaned.replace(/\bless than\s+[\d,]+\b/gi, "");
   cleaned = cleaned.replace(/\bbetween\s+[\d,]+\s+and\s+[\d,]+\b/gi, "");
 
-  // Remove filler words
+  // Remove filler words + bare negation words ("no", "not", "without", ...).
   const words = cleaned
     .replace(/[^\w\s-]/g, " ")
     .split(/\s+/)
-    .filter((word) => word && !FILLER_WORDS.has(word));
+    .filter(
+      (word) =>
+        word &&
+        !FILLER_WORDS.has(word) &&
+        !NEGATION_WORDS.has(word),
+    );
 
   return words.join(" ").trim();
 }
@@ -470,12 +580,20 @@ function buildKeywordSearchTerm(intent) {
   const parts = [];
   const query = intent.query || "";
 
+  // Compute negated tokens once so we can drop anything the user rejected
+  // (e.g. "no i don't want nashein" -> "nashein" is negated).
+  const negatedTokens = getNegatedTokens(query);
+
   //
   // -------------------------
-  // Brand — only if mentioned in current query
+  // Brand — only if mentioned in current query AND not negated
   // -------------------------
   //
-  if (intent.brand?.name && isBrandMentionedInQuery(query, intent.brand)) {
+  if (
+    intent.brand?.name &&
+    isBrandMentionedInQuery(query, intent.brand) &&
+    !isNegated(negatedTokens, intent.brand.name)
+  ) {
     parts.push(intent.brand.name);
   }
 
@@ -484,7 +602,11 @@ function buildKeywordSearchTerm(intent) {
   // Product Type — only if mentioned in current query
   // -------------------------
   //
-  if (intent.productType && isProductTypeMentioned(query, intent.productType)) {
+  if (
+    intent.productType &&
+    isProductTypeMentioned(query, intent.productType) &&
+    !isNegated(negatedTokens, getProductTypeSearchTerm(intent.productType))
+  ) {
     const productTypeTerm = getProductTypeSearchTerm(intent.productType);
 
     if (productTypeTerm) {
@@ -497,7 +619,11 @@ function buildKeywordSearchTerm(intent) {
   // Fragrance Note — only if mentioned in current query
   // -------------------------
   //
-  if (intent.note && isNoteMentioned(query, intent.note)) {
+  if (
+    intent.note &&
+    isNoteMentioned(query, intent.note) &&
+    !isNegated(negatedTokens, getNoteSearchTerm(intent.note))
+  ) {
     const noteTerm = getNoteSearchTerm(intent.note);
 
     if (noteTerm) {
@@ -510,7 +636,11 @@ function buildKeywordSearchTerm(intent) {
   // Occasion — only if mentioned in current query
   // -------------------------
   //
-  if (intent.occasion && isOccasionMentioned(query, intent.occasion)) {
+  if (
+    intent.occasion &&
+    isOccasionMentioned(query, intent.occasion) &&
+    !isNegated(negatedTokens, getOccasionSearchTerm(intent.occasion))
+  ) {
     const occasionTerm = getOccasionSearchTerm(intent.occasion);
 
     if (occasionTerm) {
@@ -523,7 +653,11 @@ function buildKeywordSearchTerm(intent) {
   // Gender — only if mentioned in current query
   // -------------------------
   //
-  if (intent.gender && isGenderMentioned(query, intent.gender)) {
+  if (
+    intent.gender &&
+    isGenderMentioned(query, intent.gender) &&
+    !isNegated(negatedTokens, getGenderSearchTerm(intent.gender))
+  ) {
     const genderTerm = getGenderSearchTerm(intent.gender);
 
     if (genderTerm) {
@@ -538,7 +672,11 @@ function buildKeywordSearchTerm(intent) {
   //
   if (
     intent.categoryGroup?.slug &&
-    isCategoryGroupMentioned(query, intent.categoryGroup.slug)
+    isCategoryGroupMentioned(query, intent.categoryGroup.slug) &&
+    !isNegated(
+      negatedTokens,
+      getCategoryGroupSearchTerm(intent.categoryGroup.slug),
+    )
   ) {
     const categoryTerm = getCategoryGroupSearchTerm(intent.categoryGroup.slug);
 
@@ -564,12 +702,16 @@ function buildKeywordSearchTerm(intent) {
     // Get all the alias words we've already included
     const alreadyIncluded = new Set(parts.join(" ").toLowerCase().split(/\s+/));
 
-    // Add words from the stripped query that aren't already included
-    // and aren't single common words like "good", "nice" etc.
+    // Add words from the stripped query that aren't already included,
+    // aren't single common words like "good"/"nice", AND aren't negated.
     for (const word of strippedWords) {
       const wordLower = word.toLowerCase();
 
-      if (!alreadyIncluded.has(wordLower) && wordLower.length > 2) {
+      if (
+        !alreadyIncluded.has(wordLower) &&
+        wordLower.length > 2 &&
+        !negatedTokens.has(wordLower)
+      ) {
         parts.push(word);
       }
     }
@@ -595,6 +737,11 @@ function buildKeywordSearchTerm(intent) {
 function getCurrentQueryEntities(intent) {
   const query = intent.query || "";
 
+  // Tokens the user explicitly rejected ("no i don't want nashein") must not
+  // drive a dedicated retrieval search, so a negated brand/productType/
+  // categoryGroup is dropped here just like in buildKeywordSearchTerm().
+  const negatedTokens = getNegatedTokens(query);
+
   const result = {
     brand: undefined,
     productType: undefined,
@@ -603,30 +750,44 @@ function getCurrentQueryEntities(intent) {
 
   //
   // -------------------------
-  // Brand — only if its name appears in the current query
+  // Brand — only if its name appears in the current query AND isn't negated
   // -------------------------
   //
-  if (intent.brand?.name && isBrandMentionedInQuery(query, intent.brand)) {
+  if (
+    intent.brand?.name &&
+    isBrandMentionedInQuery(query, intent.brand) &&
+    !isNegated(negatedTokens, intent.brand.name)
+  ) {
     result.brand = intent.brand;
   }
 
   //
   // -------------------------
   // Product Type — only if any alias is mentioned in the current query
+  // AND isn't negated
   // -------------------------
   //
-  if (intent.productType && isProductTypeMentioned(query, intent.productType)) {
+  if (
+    intent.productType &&
+    isProductTypeMentioned(query, intent.productType) &&
+    !isNegated(negatedTokens, getProductTypeSearchTerm(intent.productType))
+  ) {
     result.productType = intent.productType;
   }
 
   //
   // -------------------------
   // Category Group — only if any alias is mentioned in the current query
+  // AND isn't negated
   // -------------------------
   //
   if (
     intent.categoryGroup?.slug &&
-    isCategoryGroupMentioned(query, intent.categoryGroup.slug)
+    isCategoryGroupMentioned(query, intent.categoryGroup.slug) &&
+    !isNegated(
+      negatedTokens,
+      getCategoryGroupSearchTerm(intent.categoryGroup.slug),
+    )
   ) {
     result.categoryGroup = intent.categoryGroup;
   }
