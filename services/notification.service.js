@@ -82,11 +82,78 @@ class NotificationService {
       }
     }
 
+    // Mark as delivered so we don't re-send it later
+    if (tickets.length > 0) {
+      notification.deliveredAt = new Date();
+      await notification.save();
+    }
+
     return {
       success: true,
       notification,
       tickets,
     };
+  }
+
+  /**
+   * Deliver notifications that were saved to the DB but never pushed
+   * (e.g. a welcome notification created before the user had a device).
+   * Called when a device is registered.
+   */
+  async deliverPendingForUser(userId) {
+    const pending = await Notification.find({
+      userId,
+      deliveredAt: null,
+    }).lean();
+
+    if (!pending.length) return { delivered: 0 };
+
+    const devices = await DeviceToken.find({ userId });
+
+    if (!devices.length) return { delivered: 0 };
+
+    const messages = [];
+
+    for (const notification of pending) {
+      for (const device of devices) {
+        if (!Expo.isExpoPushToken(device.token)) continue;
+
+        messages.push({
+          to: device.token,
+          sound: "default",
+          title: notification.title,
+          body: notification.body,
+          data: {
+            notificationId: notification._id.toString(),
+            ...(notification.data || {}),
+          },
+        });
+      }
+    }
+
+    if (!messages.length) return { delivered: 0 };
+
+    const chunks = expo.chunkPushNotifications(messages);
+    const tickets = [];
+
+    for (const chunk of chunks) {
+      try {
+        const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+        tickets.push(...ticketChunk);
+      } catch (error) {
+        console.error("Expo Pending Push Error:", error);
+      }
+    }
+
+    // Mark all pending as delivered if any push succeeded
+    if (tickets.length > 0) {
+      await Notification.updateMany(
+        { userId, deliveredAt: null },
+        { deliveredAt: new Date() },
+      );
+    }
+
+    return { delivered: tickets.length };
   }
 
   /**

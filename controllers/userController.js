@@ -247,7 +247,10 @@ export const googleLogin = handleAsyncError(async (req, res, next) => {
   // Customer doesn't exist
   // Create one automatically
   //
+  let isNewUser = false;
+
   if (!customer) {
+    isNewUser = true;
     const password = crypto.randomUUID();
 
     const response = await wc.post("/customers", {
@@ -341,6 +344,7 @@ export const googleLogin = handleAsyncError(async (req, res, next) => {
     user,
     accessToken,
     refreshToken,
+    isNewUser,
   });
 });
 
