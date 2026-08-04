@@ -51,37 +51,22 @@ function mapErrorCode(status) {
 /**
  * Validates DeepSeek response structure.
  *
- * DeepSeek reasoning models sometimes return the answer in
- * `message.reasoning_content` while leaving `message.content` empty ("").
- * A response is valid as long as EITHER field carries non-empty text.
+ * Only `message.content` is treated as the user-facing answer.
+ * `message.reasoning_content` is the model's internal chain-of-thought and
+ * must NEVER be surfaced (it can leak the system prompt / instructions).
+ *
+ * NOTE: Some DeepSeek reasoning responses return an EMPTY `content` while
+ * filling `reasoning_content`. We intentionally treat that as an INVALID
+ * response so the router falls through to the next provider instead of
+ * leaking the model's private reasoning to the user.
  */
 function isValidResponse(data) {
-  if (
-    !data ||
-    !Array.isArray(data.choices) ||
-    data.choices.length === 0
-  ) {
-    return false;
-  }
-
-  const message = data.choices[0]?.message;
-
-  return Boolean(message && (message.content || message.reasoning_content));
-}
-
-/**
- * Extracts the usable text from a DeepSeek choice.
- *
- * Prefers `content` (the final answer). Falls back to `reasoning_content`
- * when `content` is empty, which happens with some DeepSeek reasoning
- * responses — without this fallback the whole response was rejected as
- * INVALID_RESPONSE and the request silently fell through to the next
- * provider.
- */
-function extractText(choice) {
-  const message = choice?.message || {};
-
-  return message.content || message.reasoning_content || "";
+  return (
+    data &&
+    Array.isArray(data.choices) &&
+    data.choices.length > 0 &&
+    data.choices[0]?.message?.content
+  );
 }
 
 /**
@@ -119,12 +104,21 @@ async function generate({
   const startedAt = Date.now();
 
   try {
-    // 4. Stays exactly the same as OpenAI architecture specs
     const response = await client.post("/chat/completions", {
       model,
       messages,
       temperature,
       max_tokens: maxTokens,
+
+      // DeepSeek reasoning-capable models (e.g. deepseek-v4-flash) can spend
+      // the ENTIRE token budget on `reasoning_content` and return an EMPTY
+      // `content` field. That empty content was previously misread as a
+      // failure (and worse, the reasoning was briefly surfaced to the user).
+      // Disabling internal thinking forces the model to produce the answer
+      // directly in `content`. Harmless on non-reasoning models.
+      chat_template_kwargs: {
+        thinking: false,
+      },
     });
 
     if (!isValidResponse(response.data)) {
@@ -149,7 +143,7 @@ async function generate({
 
       latency: Date.now() - startedAt,
 
-      text: extractText(response.data.choices[0]),
+      text: response.data.choices[0].message.content,
 
       usage: {
         promptTokens: usage.prompt_tokens || 0,

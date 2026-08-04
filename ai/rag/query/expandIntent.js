@@ -945,8 +945,23 @@ export default function expandIntent(intent = {}) {
       intent: intent.type,
     });
 
+    // Non-product intents (greeting, education, store info) must NEVER trigger
+    // product retrieval. Strip the retrieval-driving entities that may have been
+    // inherited from conversation memory, otherwise a leftover brand/productType/
+    // categoryGroup would satisfy a retrieval strategy's condition and fire an
+    // unrelated search (e.g. a GREETING still pulling productsByBrand:Nashein
+    // from a prior turn). `searches: []` already prevents the keyword search,
+    // but the strategy conditions read intent.brand / intent.productType /
+    // intent.categoryGroup directly, so those must be cleared too.
     return {
       ...intent,
+      brand: undefined,
+      productType: undefined,
+      categoryGroup: undefined,
+      note: undefined,
+      occasion: undefined,
+      gender: undefined,
+      featured: false,
       expandedQuery: stripFiller(intent.query),
       searches: [],
     };
