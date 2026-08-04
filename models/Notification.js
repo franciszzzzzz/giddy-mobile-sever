@@ -40,6 +40,13 @@ const notificationSchema = new mongoose.Schema(
       index: true,
     },
 
+    // When the push was actually delivered to a device.
+    // null = saved to DB but not yet pushed (e.g. user had no device yet).
+    deliveredAt: {
+      type: Date,
+      default: null,
+    },
+
     sentAt: {
       type: Date,
       default: Date.now,

@@ -5,19 +5,22 @@ import handleAsyncError from "../middleware/handleAsyncError.js";
 import { CACHE_TTL } from "../utils/cacheUtils.js";
 import HandleError from "../utils/handleError.js";
 import { sendEmail } from "../utils/sendEmail.js";
+import { googleClient } from "../utils/googleClient.js";
 import { createAccessToken, createRefreshToken } from "../utils/token.js";
 import { log } from "console";
 import mongoose from "mongoose";
 import axios from "axios";
-//register user
+import NotificationService from "../services/notification.service.js";
+
 export const registerUser = handleAsyncError(async (req, res, next) => {
   const { name, email, password } = req.body;
+
   if (!name || !email || !password) {
     return next(new HandleError("All fields are required", 400));
   }
 
   try {
-    // WooCommerce creates WP customer
+    // WooCommerce creates the WordPress customer
     const response = await wc.post("/customers", {
       email,
       username: email,
@@ -25,26 +28,39 @@ export const registerUser = handleAsyncError(async (req, res, next) => {
       password,
     });
 
+    const customer = response.data;
+
+    // Send welcome notification (don't let failures affect registration)
+    try {
+      await NotificationService.send({
+        userId: customer.id,
+        title: "🎉 Welcome to Giddy & Claire",
+        body: `Hi ${customer.first_name}, welcome to Giddy & Claire! We're excited to have you with us.`,
+        type: "system",
+        data: {
+          screen: "Home",
+        },
+      });
+    } catch (error) {
+      console.error("Failed to send welcome notification:", error);
+    }
+
     return res.status(201).json({
       success: true,
-
       message: "User registered successfully",
-
-      user: response.data,
+      user: customer,
     });
   } catch (error) {
     console.error("REGISTER ERROR:", error.response?.data || error.message);
 
     const wcError = error.response?.data;
 
-    // Email already exists
     if (wcError?.code === "registration-error-email-exists") {
       return next(
         new HandleError("An account with this email already exists.", 409),
       );
     }
 
-    // Username already exists
     if (wcError?.code === "registration-error-username-exists") {
       return next(
         new HandleError("An account with this email already exists.", 409),
@@ -188,6 +204,151 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
 
     return next(new HandleError("Invalid email or password.", 401));
   }
+});
+
+export const googleLogin = handleAsyncError(async (req, res, next) => {
+  const { idToken } = req.body;
+
+  if (!idToken) {
+    return next(new HandleError("Google token is required.", 400));
+  }
+
+  //
+  // Verify Google Token
+  //
+  const ticket = await googleClient.verifyIdToken({
+    idToken,
+    audience: process.env.GOOGLE_WEB_CLIENT_ID,
+  });
+
+  const payload = ticket.getPayload();
+
+  const email = payload.email;
+  const firstName = payload.given_name || payload.name;
+  const lastName = payload.family_name || "";
+  const picture = payload.picture;
+
+  //
+  // Try finding WooCommerce customer
+  //
+  let customer = null;
+
+  const customerResponse = await wc.get("/customers", {
+    params: {
+      email,
+    },
+  });
+
+  if (
+    Array.isArray(customerResponse.data) &&
+    customerResponse.data.length > 0
+  ) {
+    customer = customerResponse.data[0];
+  }
+
+  //
+  // Customer doesn't exist
+  // Create one automatically
+  //
+  let isNewUser = false;
+
+  if (!customer) {
+    isNewUser = true;
+    const password = crypto.randomUUID();
+
+    const response = await wc.post("/customers", {
+      email,
+      username: email,
+      password,
+      first_name: firstName,
+      last_name: lastName,
+    });
+
+    customer = response.data;
+
+    //
+    // Optional Welcome Notification
+    //
+    try {
+      await NotificationService.send({
+        userId: customer.id,
+        title: "🎉 Welcome to Giddy & Claire",
+        body: `Hi ${customer.first_name}, welcome to Giddy & Claire!`,
+        type: "system",
+        data: {
+          screen: "Home",
+        },
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  //
+  // Build User
+  //
+  const user = {
+    id: customer.id,
+    wpUserId: customer.id,
+    email: customer.email,
+    firstName: customer.first_name,
+    role: customer.role,
+    picture,
+  };
+
+  //
+  // Create App Tokens
+  //
+  const accessToken = createAccessToken({
+    id: user.id,
+    wpUserId: user.wpUserId,
+    role: user.role,
+    email: user.email,
+    firstName: user.firstName,
+  });
+
+  const refreshToken = createRefreshToken();
+
+  //
+  // Remove previous refresh token
+  //
+  const existingRefresh = await redisClient.get(`user:${user.id}`);
+
+  if (existingRefresh) {
+    await redisClient.del(`refresh:${existingRefresh}`);
+  }
+
+  //
+  // Save Refresh Token
+  //
+  await redisClient.setEx(
+    `refresh:${refreshToken}`,
+    CACHE_TTL.REFRESH_TOKEN,
+    JSON.stringify({
+      id: user.id,
+      role: user.role,
+      email: user.email,
+      firstName: user.firstName,
+    }),
+  );
+
+  //
+  // Map User -> Refresh Token
+  //
+  await redisClient.setEx(
+    `user:${user.id}`,
+    CACHE_TTL.REFRESH_TOKEN,
+    refreshToken,
+  );
+
+  return res.status(200).json({
+    success: true,
+    message: "Google login successful.",
+    user,
+    accessToken,
+    refreshToken,
+    isNewUser,
+  });
 });
 
 // REFRESH ACCESS TOKEN
