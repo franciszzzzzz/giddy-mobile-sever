@@ -9,6 +9,7 @@ import productOfWeek from "./productOfWeek.strategy.js";
 import brands from "./brands.strategy.js";
 import categories from "./categories.strategy.js";
 import followUpStrategy from "./followUp.strategy.js";
+import conversation from "./conversation.strategy.js";
 
 import { INTENTS } from "../../constants/intents.js";
 
@@ -34,6 +35,19 @@ const strategies = {
   [INTENTS.CATEGORIES]: categories,
 
   [INTENTS.FOLLOW_UP]: followUpStrategy,
+
+  //
+  // Non-product intents are conversational: they must NOT retrieve or show
+  // products. Maps to the no-op conversation strategy so greetings,
+  // education answers and store info never attach product cards.
+  //
+  [INTENTS.GREETING]: conversation,
+
+  [INTENTS.FRAGRANCE_EDUCATION]: conversation,
+
+  [INTENTS.STORE_INFORMATION]: conversation,
+
+  [INTENTS.UNKNOWN]: conversation,
 };
 
 /**

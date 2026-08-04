@@ -81,6 +81,56 @@ const MAX_BRAND_WORDS = 3;
 const BRAND_MATCH_THRESHOLD = 0.4;
 
 /**
+ * Generic product-category words that must NEVER be treated as brand names.
+ *
+ * Some catalogs contain brands whose names include these words (e.g. a brand
+ * literally called "Perfume" or a slug like "perfume-co"), and the fuzzy
+ * matcher will happily accept "perfume" as a brand with a low score. That
+ * causes queries like "recommend a perfume" to fire a productsByBrand search
+ * for the non-brand "Perfume", polluting results. These words describe the
+ * product TYPE, not a brand, so any brand match whose matched phrase is one
+ * of these is rejected.
+ */
+const GENERIC_NON_BRAND_WORDS = new Set([
+  "perfume",
+  "perfumes",
+  "cologne",
+  "colognes",
+  "fragrance",
+  "fragrances",
+  "scent",
+  "scents",
+  "deodorant",
+  "deodorants",
+  "lotion",
+  "lotions",
+  "cream",
+  "creams",
+  "soap",
+  "soaps",
+  "oil",
+  "oils",
+  "spray",
+  "sprays",
+  "diffuser",
+  "diffusers",
+  "candle",
+  "candles",
+  "gift",
+  "gifts",
+  "set",
+  "sets",
+  "body",
+  "bath",
+  "shower",
+  "hair",
+  "skin",
+  "makeup",
+  "lipstick",
+  "lotion",
+]);
+
+/**
  * Detects brands mentioned in the message using a fuzzy sliding-window scan.
  *
  * The previous implementation ran a single Fuse search over the ENTIRE message
@@ -122,6 +172,14 @@ function detectBrands(message, brands) {
   for (let size = 1; size <= MAX_BRAND_WORDS; size++) {
     for (let start = 0; start + size <= tokens.length; start++) {
       const phrase = tokens.slice(start, start + size).join(" ");
+
+      // Reject generic product-category words ("perfume", "cologne", ...)
+      // even if the fuzzy matcher accepts them. These describe the product
+      // type, not a brand, and would otherwise fire a bogus productsByBrand
+      // search (e.g. "recommend a perfume" -> productsByBrand:Perfume).
+      if (GENERIC_NON_BRAND_WORDS.has(phrase)) {
+        continue;
+      }
 
       const result = fuse.search(phrase);
 
