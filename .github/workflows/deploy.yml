@@ -31,7 +31,17 @@ jobs:
             echo "Removing unused images..."
             docker image prune -f
 
-            echo "Health check..."
+            echo "Waiting for backend..."
+            for i in {1..30}; do
+              if curl -fs https://api.giddyandclaire.com/api/v1/health > /dev/null; then
+                echo "Backend is healthy!"
+                break
+              fi
+              echo "Waiting..."
+              sleep 2
+            done
+
+            echo "Final health check..."
             curl -f https://api.giddyandclaire.com/api/v1/health
 
             echo "Deployment successful!"
