@@ -32,6 +32,6 @@ jobs:
             docker image prune -f
 
             echo "Health check..."
-            curl -f http://localhost/api/v1/health
+            curl -f https://api.giddyandclaire.com/api/v1/health
 
             echo "Deployment successful!"
