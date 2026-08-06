@@ -1,0 +1,37 @@
+name: Deploy Backend to Oracle VM
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.PORT }}
+          script: |
+            set -e
+
+            cd ~/giddy-mobile-sever
+
+            echo "Pulling latest code..."
+            git pull origin main
+
+            echo "Building backend..."
+            docker compose up -d --build backend
+
+            echo "Removing unused images..."
+            docker image prune -f
+
+            echo "Health check..."
+            curl -f http://localhost/api/v1/health
+
+            echo "Deployment successful!"
