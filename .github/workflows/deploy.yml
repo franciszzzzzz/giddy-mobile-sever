@@ -25,23 +25,31 @@ jobs:
             echo "Pulling latest code..."
             git pull origin main
 
-            echo "Building backend..."
+            echo "Building and restarting backend..."
             docker compose up -d --build backend
 
-            echo "Removing unused images..."
+            echo "Removing unused Docker images..."
             docker image prune -f
 
-            echo "Waiting for backend..."
+            echo "Waiting for backend to become healthy..."
+
             for i in {1..30}; do
-              if curl -fs https://api.giddyandclaire.com/api/v1/health > /dev/null; then
-                echo "Backend is healthy!"
+              if curl -fs http://127.0.0.1:8000/api/v1/health > /dev/null; then
+                echo "✅ Backend is healthy!"
                 break
               fi
-              echo "Waiting..."
+
+              if [ "$i" -eq 30 ]; then
+                echo "❌ Backend failed to become healthy."
+                docker compose logs backend --tail=100
+                exit 1
+              fi
+
+              echo "Attempt $i/30: waiting 2 seconds..."
               sleep 2
             done
 
-            echo "Final health check..."
-            curl -f https://api.giddyandclaire.com/api/v1/health
+            echo "Running final health check..."
+            curl -f http://127.0.0.1:8000/api/v1/health
 
-            echo "Deployment successful!"
+            echo "🎉 Deployment successful!"
