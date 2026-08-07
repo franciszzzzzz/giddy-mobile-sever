@@ -146,7 +146,8 @@ export const verifyPayment = handleAsyncError(async (req, res, next) => {
       body: `Your payment for Order #${payment.wcOrderId} was successful.`,
       type: "order",
       data: {
-        screen: "Payment",
+        screen: "Orders",
+        orderId: String(payment.wcOrderId),
       },
     });
   } catch (error) {
@@ -211,7 +212,8 @@ export const paymentWebhook = async (req, res) => {
         body: `Your payment for Order #${payment.wcOrderId} was successful.`,
         type: "order",
         data: {
-          screen: "Payment",
+          screen: "Orders",
+          orderId: String(payment.wcOrderId),
         },
       });
     } catch (error) {
