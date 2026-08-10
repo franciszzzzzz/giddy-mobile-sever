@@ -1,43 +1,197 @@
 import { Expo } from "expo-server-sdk";
-import Notification from "../models/Notification.js";
 import DeviceToken from "../models/DeviceToken.js";
 
 const expo = new Expo();
 
-class NotificationService {
-  /**
-   * Send a notification to a single user.
-   */
-  async send({ userId, title, body, type = "system", data = {}, push = true }) {
-    // Save notification
-    const notification = await Notification.create({
-      userId,
-      title,
-      body,
-      type,
-      data,
-      sentAt: new Date(),
-    });
+/**
+ * How long (seconds) a push stays valid if the device is offline.
+ *
+ * After this window, Expo drops the notification entirely — it never
+ * silently lands later. This gives the "pop and gone" behavior you want,
+ * similar to WhatsApp, instead of stale messages piling up.
+ */
+const PUSH_TTL_SECONDS = 15 * 60; // 15 minutes
 
-    if (!push) {
-      return {
-        success: true,
-        notification,
-        tickets: [],
-      };
+/**
+ * Identifier of the Android notification channel the client creates at
+ * startup (see client notification.service.ts). The push must reference
+ * the same id so Android routes it to a HIGH-importance channel and shows
+ * the heads-up banner + sound + vibration instead of a silent tray entry.
+ */
+const CHANNELS = {
+  WELCOME: "welcome",
+  ORDERS: "orders",
+};
+
+/**
+ * Maps a notification "type" (the legacy field callers pass) to the Android
+ * channel id. Defaults to the orders channel for anything unrecognized so
+ * the notification still pops.
+ */
+function channelIdForType(type) {
+  if (type === "system") return CHANNELS.WELCOME;
+  return CHANNELS.ORDERS;
+}
+
+/**
+ * Builds an Expo push-message object with WhatsApp-style delivery settings.
+ *
+ * - priority: "high"  → delivered immediately, not batched/delayed
+ * - sound: "default"   → plays the device's default notification sound
+ * - channelId           → must match the client's setNotificationChannelAsync id
+ * - ttl                 → expires after PUSH_TTL_SECONDS if the device is offline
+ *
+ * @param {Object} params
+ * @returns {Object} Expo message
+ */
+function buildMessage({ to, title, body, data = {}, channelId, ttl = PUSH_TTL_SECONDS }) {
+  return {
+    to,
+    title,
+    body,
+    sound: "default",
+    priority: "high",
+    channelId,
+    ttl,
+    data,
+  };
+}
+
+/**
+ * Sends a batch of push messages through Expo and returns the tickets.
+ *
+ * Receipts are checked after a short delay so invalid/expired device tokens
+ * are pruned from DeviceToken — without this, dead tokens accumulate and
+ * silently waste every future send.
+ *
+ * @param {Array} messages - Expo message objects
+ * @returns {Promise<Array>} tickets
+ */
+async function sendMessages(messages) {
+  if (!messages.length) return [];
+
+  const chunks = expo.chunkPushNotifications(messages);
+  const tickets = [];
+
+  for (const chunk of chunks) {
+    try {
+      const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+      console.log("Expo Tickets:", ticketChunk);
+      tickets.push(...ticketChunk);
+    } catch (error) {
+      console.error("Expo Push Error:", error);
+    }
+  }
+
+  // Prune invalid tokens in the background — don't block the caller.
+  pruneInvalidTokens(tickets, messages).catch((err) =>
+    console.error("Receipt check failed:", err),
+  );
+
+  return tickets;
+}
+
+/**
+ * Checks push receipts shortly after sending and deletes device tokens that
+ * Expo reports as invalid (uninstalled app, expired token, etc.).
+ *
+ * Tickets are only readable for ~30 minutes after sending, so this must run
+ * promptly. We wait a few seconds first to give Expo time to register the
+ * receipt.
+ *
+ * @param {Array} tickets - tickets returned by sendPushNotificationsAsync
+ * @param {Array} messages - the messages that were sent (to map back to tokens)
+ */
+async function pruneInvalidTokens(tickets, messages) {
+  // Build a map of ticketId → token so we know WHICH token failed.
+  const ticketTokenMap = new Map();
+  let tokenIndex = 0;
+
+  for (const ticket of tickets) {
+    if (ticket.id) {
+      // Tickets are returned in the same order as the messages in each chunk.
+      // Map by position; if a chunk was smaller, tokenIndex keeps running.
+      const msg = messages[tokenIndex];
+      if (msg) {
+        ticketTokenMap.set(ticket.id, msg.to);
+      }
     }
 
-    // Get user's devices
+    if (ticket.status === "error") {
+      // Device-level error (invalid token) — prune immediately.
+      const token = ticketTokenMap.get(ticket.id) || messages[tokenIndex]?.to;
+      if (token && ticket.details?.error === "DeviceNotRegistered") {
+        await DeviceToken.deleteOne({ token }).catch(() => {});
+      }
+    }
+
+    tokenIndex++;
+  }
+
+  // Check receipts for delivery errors (async, best-effort).
+  const receiptIds = [];
+
+  for (const ticket of tickets) {
+    if (ticket.status === "ok" && ticket.id) {
+      receiptIds.push(ticket.id);
+    }
+  }
+
+  if (!receiptIds.length) return;
+
+  // Give Expo a moment to register the receipts before reading them.
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+
+  const receiptChunks = expo.chunkPushNotificationReceiptIds(receiptIds);
+
+  for (const chunk of receiptChunks) {
+    try {
+      const receipts = await expo.getPushNotificationReceiptsAsync(chunk);
+
+      for (const receiptId of Object.keys(receipts)) {
+        const receipt = receipts[receiptId];
+
+        if (receipt.status === "error") {
+          const token = ticketTokenMap.get(receiptId);
+
+          if (token && receipt.details?.error === "DeviceNotRegistered") {
+            console.log(`Pruning unregistered device token: ${token}`);
+            await DeviceToken.deleteOne({ token }).catch(() => {});
+          }
+
+          console.error(`Push receipt error:`, receipt.message, receipt.details);
+        }
+      }
+    } catch (error) {
+      console.error("Receipt fetch error:", error);
+    }
+  }
+}
+
+class NotificationService {
+  /**
+   * Sends an ephemeral push notification to all of a user's devices.
+   *
+   * No database record is created — the notification pops on the phone
+   * (sound + heads-up banner via HIGH-importance channel) and expires after
+   * PUSH_TTL_SECONDS if the device is offline.
+   *
+   * @param {Object} params
+   * @param {string} params.userId
+   * @param {string} params.title
+   * @param {string} params.body
+   * @param {string} [params.type="system"] - controls the Android channel
+   * @param {Object} [params.data={}] - deep-link payload (screen, orderId, ...)
+   * @returns {Promise<Object>} { success, tickets }
+   */
+  async send({ userId, title, body, type = "system", data = {} }) {
     const devices = await DeviceToken.find({ userId });
 
     if (!devices.length) {
-      return {
-        success: true,
-        notification,
-        tickets: [],
-      };
+      return { success: true, tickets: [] };
     }
 
+    const channelId = channelIdForType(type);
     const messages = [];
 
     for (const device of devices) {
@@ -46,152 +200,37 @@ class NotificationService {
         continue;
       }
 
-      messages.push({
-        to: device.token,
-        sound: "default",
-        title,
-        body,
-        data: {
-          notificationId: notification._id.toString(),
-          ...data,
-        },
-      });
+      messages.push(buildMessage({ to: device.token, title, body, data, channelId }));
     }
 
     if (!messages.length) {
-      return {
-        success: true,
-        notification,
-        tickets: [],
-      };
+      return { success: true, tickets: [] };
     }
 
-    const chunks = expo.chunkPushNotifications(messages);
+    const tickets = await sendMessages(messages);
 
-    const tickets = [];
-
-    for (const chunk of chunks) {
-      try {
-        const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
-
-        console.log("Expo Tickets:", ticketChunk);
-
-        tickets.push(...ticketChunk);
-      } catch (error) {
-        console.error("Expo Push Error:", error);
-      }
-    }
-
-    // Mark as delivered so we don't re-send it later
-    if (tickets.length > 0) {
-      notification.deliveredAt = new Date();
-      await notification.save();
-    }
-
-    return {
-      success: true,
-      notification,
-      tickets,
-    };
+    return { success: true, tickets };
   }
 
   /**
-   * Deliver notifications that were saved to the DB but never pushed
-   * (e.g. a welcome notification created before the user had a device).
-   * Called when a device is registered.
-   */
-  async deliverPendingForUser(userId) {
-    const pending = await Notification.find({
-      userId,
-      deliveredAt: null,
-    }).lean();
-
-    if (!pending.length) return { delivered: 0 };
-
-    const devices = await DeviceToken.find({ userId });
-
-    if (!devices.length) return { delivered: 0 };
-
-    const messages = [];
-
-    for (const notification of pending) {
-      for (const device of devices) {
-        if (!Expo.isExpoPushToken(device.token)) continue;
-
-        messages.push({
-          to: device.token,
-          sound: "default",
-          title: notification.title,
-          body: notification.body,
-          data: {
-            notificationId: notification._id.toString(),
-            ...(notification.data || {}),
-          },
-        });
-      }
-    }
-
-    if (!messages.length) return { delivered: 0 };
-
-    const chunks = expo.chunkPushNotifications(messages);
-    const tickets = [];
-
-    for (const chunk of chunks) {
-      try {
-        const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
-        tickets.push(...ticketChunk);
-      } catch (error) {
-        console.error("Expo Pending Push Error:", error);
-      }
-    }
-
-    // Mark all pending as delivered if any push succeeded
-    if (tickets.length > 0) {
-      await Notification.updateMany(
-        { userId, deliveredAt: null },
-        { deliveredAt: new Date() },
-      );
-    }
-
-    return { delivered: tickets.length };
-  }
-
-  /**
-   * Broadcast notification to all users.
+   * Broadcasts an ephemeral push notification to every registered device.
+   * Kept for potential future use (promotions, announcements).
+   *
+   * @param {Object} params
+   * @param {string} params.title
+   * @param {string} params.body
+   * @param {string} [params.type="promotion"]
+   * @param {Object} [params.data={}]
+   * @returns {Promise<Object>} { success, tickets }
    */
   async broadcast({ title, body, type = "promotion", data = {} }) {
-    // Get all registered devices
     const devices = await DeviceToken.find().lean();
 
     if (!devices.length) {
-      return {
-        success: true,
-        notificationsCreated: 0,
-        tickets: [],
-      };
+      return { success: true, tickets: [] };
     }
 
-    /**
-     * Create ONE notification per user
-     */
-    const uniqueUsers = [
-      ...new Map(devices.map((device) => [device.userId, device])).values(),
-    ];
-
-    const notifications = uniqueUsers.map((user) => ({
-      userId: user.userId,
-      title,
-      body,
-      type,
-      data,
-      sentAt: new Date(),
-    }));
-
-    const createdNotifications = await Notification.insertMany(notifications);
-
-    /**
-     * Send push to EVERY device
-     */
+    const channelId = channelIdForType(type);
     const messages = [];
 
     for (const device of devices) {
@@ -200,44 +239,16 @@ class NotificationService {
         continue;
       }
 
-      messages.push({
-        to: device.token,
-        sound: "default",
-        title,
-        body,
-        data,
-      });
+      messages.push(buildMessage({ to: device.token, title, body, data, channelId }));
     }
 
     if (!messages.length) {
-      return {
-        success: true,
-        notificationsCreated: createdNotifications.length,
-        tickets: [],
-      };
+      return { success: true, tickets: [] };
     }
 
-    const chunks = expo.chunkPushNotifications(messages);
+    const tickets = await sendMessages(messages);
 
-    const tickets = [];
-
-    for (const chunk of chunks) {
-      try {
-        const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
-
-        console.log("Expo Broadcast Tickets:", ticketChunk);
-
-        tickets.push(...ticketChunk);
-      } catch (error) {
-        console.error("Expo Broadcast Error:", error);
-      }
-    }
-
-    return {
-      success: true,
-      notificationsCreated: createdNotifications.length,
-      tickets,
-    };
+    return { success: true, tickets };
   }
 }
 

@@ -23,13 +23,6 @@ export const registerDeviceToken = handleAsyncError(async (req, res, next) => {
 
     await existingToken.save();
 
-    // Deliver any notifications pending for this user (harmless if none).
-    try {
-      await NotificationService.deliverPendingForUser(userId);
-    } catch (error) {
-      console.error("Failed to deliver pending notifications:", error);
-    }
-
     return res.status(200).json({
       success: true,
       message: "Device token updated.",
@@ -44,14 +37,6 @@ export const registerDeviceToken = handleAsyncError(async (req, res, next) => {
     appVersion,
   });
 
-  // Deliver any notifications that were saved before this device existed
-  // (e.g. the welcome notification sent at registration / first Google login).
-  try {
-    await NotificationService.deliverPendingForUser(userId);
-  } catch (error) {
-    console.error("Failed to deliver pending notifications:", error);
-  }
-
   res.status(201).json({
     success: true,
     message: "Device token registered.",
@@ -59,7 +44,7 @@ export const registerDeviceToken = handleAsyncError(async (req, res, next) => {
 });
 
 export const sendTestNotification = handleAsyncError(async (req, res) => {
-  const notification = await NotificationService.send({
+  const result = await NotificationService.send({
     userId: req.user.id,
     title: "🎉 Welcome to Giddy & Claire",
     body: "Congratulations! Your push notifications are working.",
@@ -72,6 +57,6 @@ export const sendTestNotification = handleAsyncError(async (req, res) => {
   res.status(200).json({
     success: true,
     message: "Test notification sent.",
-    notification,
+    tickets: result.tickets,
   });
 });
