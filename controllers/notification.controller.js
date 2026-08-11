@@ -207,3 +207,44 @@ export const sendTestWelcomeNotification = handleAsyncError(async (req, res) => 
       : "Welcome push failed — see tickets.",
   });
 });
+
+/**
+ * Simulates the payment-success notification — the exact same push a user
+ * receives after a successful Paystack payment.
+ *
+ * Useful for testing the payment notification WITHOUT making a real payment.
+ * Uses type: "order" so it routes to the "orders" Android channel (same as
+ * the real verifyPayment and paymentWebhook flows).
+ */
+export const sendTestPaymentNotification = handleAsyncError(async (req, res) => {
+  const userId = req.user.id;
+
+  const result = await NotificationService.send({
+    userId,
+    title: "💳 Payment Successful",
+    body: "Your payment for Order #12345 was successful.",
+    type: "order",
+    data: {
+      screen: "Orders",
+      orderId: "12345",
+    },
+  });
+
+  const ticketSummary = (result.tickets || []).map((ticket) => ({
+    status: ticket.status,
+    message: ticket.message,
+    error: ticket.details?.error,
+    ticketId: ticket.id,
+  }));
+
+  const anyOk = ticketSummary.some((t) => t.status === "ok");
+
+  res.status(200).json({
+    success: true,
+    delivered: anyOk,
+    tickets: ticketSummary,
+    message: anyOk
+      ? "Payment push sent. This is exactly what a user receives after paying."
+      : "Payment push failed — see tickets.",
+  });
+});

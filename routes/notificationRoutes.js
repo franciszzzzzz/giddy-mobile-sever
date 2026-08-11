@@ -3,6 +3,7 @@ import {
   registerDeviceToken,
   sendTestNotification,
   sendTestWelcomeNotification,
+  sendTestPaymentNotification,
 } from "../controllers/notification.controller.js";
 import { verifyUserAuth } from "../middleware/userAuth.js";
 
@@ -17,6 +18,12 @@ router.post(
   "/notifications/test-welcome",
   verifyUserAuth,
   sendTestWelcomeNotification,
+);
+
+router.post(
+  "/notifications/test-payment",
+  verifyUserAuth,
+  sendTestPaymentNotification,
 );
 
 export default router;
