@@ -78,6 +78,9 @@ export const registerDeviceToken = handleAsyncError(async (req, res, next) => {
 export const sendTestNotification = handleAsyncError(async (req, res) => {
   const userId = req.user.id;
 
+  console.log(`[TEST] req.user.id = ${JSON.stringify(userId)} (type: ${typeof userId})`);
+  console.log(`[TEST] req.user.wpUserId = ${JSON.stringify(req.user.wpUserId)}`);
+
   //
   // Diagnostic test endpoint.
   //
@@ -89,7 +92,18 @@ export const sendTestNotification = handleAsyncError(async (req, res) => {
   //
   const devices = await DeviceToken.find({ userId }).lean();
 
+  console.log(`[TEST] Found ${devices.length} device(s) for userId=${userId}`);
+
   if (!devices.length) {
+    // Diagnostic: show how many tokens exist total, and what userIds have them.
+    // This reveals whether the token was saved under a different userId.
+    const totalTokens = await DeviceToken.countDocuments();
+    const recentTokens = await DeviceToken.find()
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select("userId platform createdAt")
+      .lean();
+
     return res.status(200).json({
       success: false,
       delivered: false,
@@ -98,6 +112,13 @@ export const sendTestNotification = handleAsyncError(async (req, res) => {
         "No device token found for this user. The client never called " +
         "/notifications/register-token, so there is nowhere to send the push.",
       deviceCount: 0,
+      debug: {
+        queriedUserId: userId,
+        queriedUserIdType: typeof userId,
+        wpUserId: req.user.wpUserId,
+        totalTokensInDb: totalTokens,
+        recentTokens: recentTokens,
+      },
     });
   }
 
