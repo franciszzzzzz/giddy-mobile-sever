@@ -2,6 +2,7 @@ import express from "express";
 import {
   registerDeviceToken,
   sendTestNotification,
+  sendTestWelcomeNotification,
 } from "../controllers/notification.controller.js";
 import { verifyUserAuth } from "../middleware/userAuth.js";
 
@@ -11,5 +12,11 @@ router
   .post(verifyUserAuth, registerDeviceToken);
 
 router.post("/notifications/test", verifyUserAuth, sendTestNotification);
+
+router.post(
+  "/notifications/test-welcome",
+  verifyUserAuth,
+  sendTestWelcomeNotification,
+);
 
 export default router;

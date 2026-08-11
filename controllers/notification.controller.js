@@ -165,3 +165,45 @@ export const sendTestNotification = handleAsyncError(async (req, res) => {
       : "Expo rejected the push — see the ticket details.",
   });
 });
+
+/**
+ * Simulates the welcome notification — the exact same push a new user would
+ * receive when they first register a device.
+ *
+ * Useful for testing the welcome notification WITHOUT creating a new account
+ * (which would require logging out, registering, and logging back in).
+ *
+ * Unlike the real welcome flow (which only fires on first device registration),
+ * this endpoint always sends the push, so you can test it repeatedly.
+ */
+export const sendTestWelcomeNotification = handleAsyncError(async (req, res) => {
+  const userId = req.user.id;
+
+  const result = await NotificationService.send({
+    userId,
+    title: "🎉 Welcome to Giddy & Claire",
+    body: "Welcome to Giddy & Claire! We're excited to have you with us.",
+    type: "system",
+    data: {
+      screen: "Home",
+    },
+  });
+
+  const ticketSummary = (result.tickets || []).map((ticket) => ({
+    status: ticket.status,
+    message: ticket.message,
+    error: ticket.details?.error,
+    ticketId: ticket.id,
+  }));
+
+  const anyOk = ticketSummary.some((t) => t.status === "ok");
+
+  res.status(200).json({
+    success: true,
+    delivered: anyOk,
+    tickets: ticketSummary,
+    message: anyOk
+      ? "Welcome push sent. This is exactly what a new user receives."
+      : "Welcome push failed — see tickets.",
+  });
+});
