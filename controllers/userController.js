@@ -10,7 +10,6 @@ import { createAccessToken, createRefreshToken } from "../utils/token.js";
 import { log } from "console";
 import mongoose from "mongoose";
 import axios from "axios";
-import NotificationService from "../services/notification.service.js";
 
 export const registerUser = handleAsyncError(async (req, res, next) => {
   const { name, email, password } = req.body;
@@ -30,20 +29,15 @@ export const registerUser = handleAsyncError(async (req, res, next) => {
 
     const customer = response.data;
 
-    // Send welcome notification (don't let failures affect registration)
-    try {
-      await NotificationService.send({
-        userId: customer.id,
-        title: "🎉 Welcome to Giddy & Claire",
-        body: `Hi ${customer.first_name}, welcome to Giddy & Claire! We're excited to have you with us.`,
-        type: "system",
-        data: {
-          screen: "Home",
-        },
-      });
-    } catch (error) {
-      console.error("Failed to send welcome notification:", error);
-    }
+    // NOTE: The welcome push notification is NOT sent here.
+    //
+    // At this point the user has no registered device token yet — the token is
+    // registered later, after login, from the client (see registerDeviceToken).
+    // Sending the notification here would silently fail because send() finds
+    // zero devices for the user.
+    //
+    // The welcome notification is instead sent from registerDeviceToken the
+    // first time a device is registered for a user.
 
     return res.status(201).json({
       success: true,
@@ -266,22 +260,9 @@ export const googleLogin = handleAsyncError(async (req, res, next) => {
 
     customer = response.data;
 
-    //
-    // Optional Welcome Notification
-    //
-    try {
-      await NotificationService.send({
-        userId: customer.id,
-        title: "🎉 Welcome to Giddy & Claire",
-        body: `Hi ${customer.first_name}, welcome to Giddy & Claire!`,
-        type: "system",
-        data: {
-          screen: "Home",
-        },
-      });
-    } catch (err) {
-      console.error(err);
-    }
+    // NOTE: Welcome notification is sent from registerDeviceToken when the
+    // first device is registered for this user — not here, where no device
+    // token exists yet.
   }
 
   //

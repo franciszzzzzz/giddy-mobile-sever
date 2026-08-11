@@ -29,6 +29,11 @@ export const registerDeviceToken = handleAsyncError(async (req, res, next) => {
     });
   }
 
+  // Check if this is the user's FIRST device — if so, they're a new user
+  // (or first login on a new device) and should get a welcome notification.
+  // We check BEFORE creating the new token so the count reflects prior state.
+  const isFirstDevice = (await DeviceToken.countDocuments({ userId })) === 0;
+
   await DeviceToken.create({
     userId,
     token,
@@ -36,6 +41,25 @@ export const registerDeviceToken = handleAsyncError(async (req, res, next) => {
     deviceName,
     appVersion,
   });
+
+  // Send the welcome push now that we know the device exists. This fires at
+  // the exact moment the token is registered, so send() will actually find a
+  // device and deliver the push. Only on first registration — not every login.
+  if (isFirstDevice) {
+    try {
+      await NotificationService.send({
+        userId,
+        title: "🎉 Welcome to Giddy & Claire",
+        body: `Welcome to Giddy & Claire! We're excited to have you with us.`,
+        type: "system",
+        data: {
+          screen: "Home",
+        },
+      });
+    } catch (error) {
+      console.error("Failed to send welcome notification:", error);
+    }
+  }
 
   res.status(201).json({
     success: true,
