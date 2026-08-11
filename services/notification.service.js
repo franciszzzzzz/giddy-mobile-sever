@@ -187,7 +187,12 @@ class NotificationService {
   async send({ userId, title, body, type = "system", data = {} }) {
     const devices = await DeviceToken.find({ userId });
 
+    console.log(
+      `[PUSH] send() called — userId=${userId}, type=${type}, devicesFound=${devices.length}`,
+    );
+
     if (!devices.length) {
+      console.warn(`[PUSH] No devices found for user ${userId} — nothing sent.`);
       return { success: true, tickets: [] };
     }
 
@@ -204,10 +209,13 @@ class NotificationService {
     }
 
     if (!messages.length) {
+      console.warn(`[PUSH] No valid Expo tokens after filtering — nothing sent.`);
       return { success: true, tickets: [] };
     }
 
     const tickets = await sendMessages(messages);
+
+    console.log(`[PUSH] Tickets returned by Expo:`, JSON.stringify(tickets, null, 2));
 
     return { success: true, tickets };
   }
