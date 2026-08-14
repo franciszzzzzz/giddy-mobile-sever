@@ -34,7 +34,7 @@ services:
       redis-server
       --appendonly yes
       --maxmemory 1gb
-      --maxmemory-policy allkeys-lru
+      --maxmemory-policy noeviction
 
     volumes:
       - redis-data:/data

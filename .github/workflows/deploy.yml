@@ -25,8 +25,11 @@ jobs:
             echo "Pulling latest code..."
             git pull origin main
 
-            echo "Building and restarting backend..."
-            docker compose up -d --build backend
+            echo "Building and restarting services..."
+            # No service arg so compose also picks up config changes on other
+            # services (e.g. redis command/maxmemory-policy) — recreating the
+            # redis container is safe: data persists via the redis-data volume (AOF).
+            docker compose up -d --build
 
             echo "Removing unused Docker images..."
             docker image prune -f

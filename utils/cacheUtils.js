@@ -114,13 +114,18 @@ export const setCache = async (key, value, ttl = 3600) => {
   }
 };
 
+// Refresh-token lifetime in days (config/.env: REFRESH_TOKEN_EXPIRE, default 7).
+// The TTL is reset every time the token is used, so this is the max idle time
+// before a user is logged out, not the total session length.
+const REFRESH_TOKEN_DAYS = Number(process.env.REFRESH_TOKEN_EXPIRE) || 7;
+
 export const CACHE_TTL = {
   PRODUCTS: 60 * 60, // 1 hour
   PRODUCT: 30 * 60, // 30 minutes
   CATEGORIES: 60 * 60, // 1 hour
   BRANDS: 60 * 60, // 1 hour
   REVIEWS: 10 * 60, // 10 minutes
-  REFRESH_TOKEN: 7 * 24 * 60 * 60,
+  REFRESH_TOKEN: REFRESH_TOKEN_DAYS * 24 * 60 * 60,
   FEATURED_PRODUCTS: 30 * 60,
   PRODUCT_OF_THE_WEEK: 6 * 60 * 60, // 6 hrs
   WP_TOKEN: 24 * 60 * 60, // 24 hours

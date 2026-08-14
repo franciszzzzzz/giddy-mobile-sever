@@ -144,10 +144,19 @@ export const loginUser = handleAsyncError(async (req, res, next) => {
     //
     // Remove old refresh token if it exists
     //
-    const existingRefresh = await redisClient.get(`user:${user.id}`);
+    const existingEntry = await redisClient.get(`user:${user.id}`);
 
-    if (existingRefresh) {
-      await redisClient.del(`refresh:${existingRefresh}`);
+    if (existingEntry) {
+      // This key stores JSON ({ refreshToken, loginAt }); older googleLogin
+      // sessions stored the raw token — handle both so the old session is
+      // actually revoked.
+      const existingRefresh = existingEntry.trim().startsWith("{")
+        ? JSON.parse(existingEntry).refreshToken
+        : existingEntry;
+
+      if (existingRefresh) {
+        await redisClient.del(`refresh:${existingRefresh}`);
+      }
     }
 
     //
@@ -293,10 +302,17 @@ export const googleLogin = handleAsyncError(async (req, res, next) => {
   //
   // Remove previous refresh token
   //
-  const existingRefresh = await redisClient.get(`user:${user.id}`);
+  const existingEntry = await redisClient.get(`user:${user.id}`);
 
-  if (existingRefresh) {
-    await redisClient.del(`refresh:${existingRefresh}`);
+  if (existingEntry) {
+    // Handle both storage formats — see loginUser for details.
+    const existingRefresh = existingEntry.trim().startsWith("{")
+      ? JSON.parse(existingEntry).refreshToken
+      : existingEntry;
+
+    if (existingRefresh) {
+      await redisClient.del(`refresh:${existingRefresh}`);
+    }
   }
 
   //
@@ -319,7 +335,11 @@ export const googleLogin = handleAsyncError(async (req, res, next) => {
   await redisClient.setEx(
     `user:${user.id}`,
     CACHE_TTL.REFRESH_TOKEN,
-    refreshToken,
+    // Same JSON shape as loginUser (previously stored the raw token)
+    JSON.stringify({
+      refreshToken,
+      loginAt: Date.now(),
+    }),
   );
 
   return res.status(200).json({
@@ -347,6 +367,11 @@ export const refreshAccessToken = handleAsyncError(async (req, res, next) => {
   }
 
   const parsedUser = JSON.parse(user);
+
+  // Sliding session: reset the TTL every time the refresh token is used so
+  // active users are never logged out. Without this, the session dies a hard
+  // N days after login regardless of activity.
+  await redisClient.expire(`refresh:${refreshToken}`, CACHE_TTL.REFRESH_TOKEN);
 
   const accessToken = createAccessToken(parsedUser);
 
