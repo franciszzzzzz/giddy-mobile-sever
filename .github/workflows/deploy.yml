@@ -23,7 +23,11 @@ jobs:
             cd ~/giddy-mobile-sever
 
             echo "Pulling latest code..."
-            git pull origin main
+            # Hard reset instead of pull so hand-edits on the VM can never
+            # block a deploy. Untracked files (e.g. config/.env) are safe —
+            # reset never touches them. Do NOT add git clean here.
+            git fetch origin main
+            git reset --hard origin/main
 
             echo "Building and restarting services..."
             # No service arg so compose also picks up config changes on other
