@@ -632,6 +632,23 @@ describe("expandIntent — 2026-08-14 production regressions", () => {
     assert.equal(categorySearch.value, "women");
   });
 
+  test('"Recommend a gift for my boyfriend" fires the men category retrieval', () => {
+    // Production 2026-08-14: this query detected recipient "boyfriend" but
+    // nothing mapped it to a retrieval path — only a dead-end keyword search
+    // for "gift boyfriend" fired and returned 0 products. Recipient words are
+    // now men/women category aliases.
+    const result = expandIntent({
+      type: INTENTS.PRODUCT_RECOMMENDATION,
+      query: "Recommend a gift for my boyfriend",
+      categoryGroup: { slug: "men", name: "men" },
+      recipient: "boyfriend",
+    });
+
+    const categorySearch = result.searches.find((s) => s.type === "category");
+    assert.ok(categorySearch, "category search must fire");
+    assert.equal(categorySearch.value, "men");
+  });
+
   test('"Yeah peefumes body sprays" keeps the productType search but no brand', () => {
     const result = expandIntent({
       type: INTENTS.PRODUCT_INFORMATION,

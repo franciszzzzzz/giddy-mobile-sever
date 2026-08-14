@@ -1,7 +1,33 @@
 export default {
-  women: ["women", "woman", "ladies", "female", "her"],
+  women: [
+    "women",
+    "woman",
+    "ladies",
+    "female",
+    "her",
+    "girlfriend",
+    "wife",
+    "sister",
+    "mum",
+    "mom",
+    "mother",
+    "mummy",
+  ],
 
-  men: ["men", "man", "male", "gentlemen", "him"],
+  men: [
+    "men",
+    "man",
+    "male",
+    "gentlemen",
+    "him",
+    "boyfriend",
+    "husband",
+    "brother",
+    "dad",
+    "father",
+    "daddy",
+    "papa",
+  ],
 
   kids: ["kids", "kid", "children", "child"],
 

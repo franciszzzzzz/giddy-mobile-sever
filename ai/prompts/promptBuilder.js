@@ -5,6 +5,31 @@ import buildEducationPrompt from "./templates/educationPrompt.js";
 import { INTENTS } from "../constants/intents.js";
 
 /**
+ * Intents whose answers must be grounded in retrieved catalogue products.
+ *
+ * When one of these yields zero products, the model gets an explicit
+ * "nothing was retrieved" instruction so it cannot fabricate a product.
+ * Greetings / education / store-info / follow-ups legitimately answer
+ * without catalogue context, so they are excluded.
+ */
+const PRODUCT_INTENTS = new Set([
+  INTENTS.PRODUCT_SEARCH,
+  INTENTS.PRODUCT_INFORMATION,
+  INTENTS.PRODUCT_RECOMMENDATION,
+  INTENTS.PRODUCT_COMPARISON,
+  INTENTS.CATEGORY,
+  INTENTS.SIMILAR_PRODUCTS,
+  INTENTS.FEATURED_PRODUCTS,
+  INTENTS.PRODUCT_OF_THE_WEEK,
+  INTENTS.BRANDS,
+  INTENTS.CATEGORIES,
+]);
+
+function isProductIntent(intent) {
+  return PRODUCT_INTENTS.has(intent?.type);
+}
+
+/**
  * Builds the complete prompt sent to the LLM.
  *
  * @param {Object} options
@@ -122,6 +147,25 @@ Instructions:
 Retrieved Products:
 
 ${JSON.stringify(promptProducts, null, 2)}
+`,
+    });
+  } else if (isProductIntent(intent)) {
+    // Zero retrieved products. Without this block the model has no catalogue
+    // grounding at all and will happily fabricate a specific product from
+    // conversation history — seen in production where the text named a
+    // "Stellar perfume" that never existed in the (empty) product context,
+    // so the product card showed nothing while the reply advertised it.
+    messages.push({
+      role: "system",
+      content: `
+No products were retrieved from the Giddy & Claire catalogue for this request.
+
+Instructions:
+
+- Do NOT name, recommend, or describe any specific product.
+- Do NOT use products remembered from earlier in the conversation — they are no longer available in the current context.
+- Politely explain that nothing matching was found right now.
+- Offer a helpful next step, e.g. asking a clarifying question (budget, scent preference, who it is for) or suggesting the user browse the featured collection or brands.
 `,
     });
   }
