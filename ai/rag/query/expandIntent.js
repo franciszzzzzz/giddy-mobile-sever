@@ -1,5 +1,3 @@
-import Fuse from "fuse.js";
-
 import { INTENTS } from "../../constants/intents.js";
 
 import productTypes from "../../agent/dictionaries/productTypes.js";
@@ -7,6 +5,8 @@ import fragranceNotes from "../../agent/dictionaries/fragranceNotes.js";
 import occasions from "../../agent/dictionaries/occasions.js";
 import categoryGroups from "../../agent/dictionaries/categoryGroups.js";
 import genders from "../../agent/dictionaries/genders.js";
+
+import { isBrandMentioned } from "../../agent/intentDetector/brandDetector.js";
 
 import logger from "../../../utils/logger.js";
 
@@ -81,6 +81,20 @@ const FILLER_WORDS = new Set([
   "why",
   "when",
   "where",
+  "your",
+  "her",
+  "him",
+  "yeah",
+  "option",
+  "options",
+  "product",
+  "products",
+  "recommendation",
+  "recommendations",
+  "seller",
+  "sellers",
+  "stuff",
+  "things",
 ]);
 
 /**
@@ -200,16 +214,6 @@ function isNegated(negatedTokens, term) {
  * because they rely on conversation memory, not new searches.
  */
 const PASS_THROUGH_INTENTS = [INTENTS.FOLLOW_UP];
-
-/**
- * Score gate and max window size for fuzzy brand-mention checks.
- *
- * Kept in sync with the detection layer in entityExtractor.js so a brand
- * detected upstream ("Sahib" -> "Sahiib") is not stripped here by a strict
- * literal substring test.
- */
-const BRAND_MATCH_THRESHOLD = 0.4;
-const MAX_BRAND_WORDS = 3;
 
 /**
  * Strips conversational filler from a query string,
@@ -383,19 +387,11 @@ function isMentionedInQuery(query, term) {
 /**
  * Checks whether a brand was mentioned in the current query.
  *
- * The generic isMentionedInQuery() uses a literal substring test, which drops
- * any fuzzy-detected brand whose stored name differs from the typed token —
- * e.g. a query "Sahib" against detected brand "Sahiib". Because brand detection
- * is intentionally typo-tolerant, the mention check must be too; otherwise the
- * detected brand is neutralized before retrieval and only an ineffective keyword
- * search fires.
- *
- * Accepts the mention when either:
- *  - the literal substring (or multi-word fallback) matches, OR
- *  - any query token / window fuzzy-matches the brand name within the score gate.
- *
- * Memory-inherited brands the user did NOT mention still fail both checks and
- * are correctly stripped, preserving the regression-protection behavior.
+ * Delegates to brandDetector.isBrandMentioned() so detection and the mention
+ * check share the exact same guards (stop words, window length, score gate,
+ * length-ratio, prefix exception). A brand detected upstream with a typo
+ * ("Sahib" -> "Sahiib") survives; an unrelated memory-inherited brand or a
+ * filler word ("seller" -> "Stellar") is rejected.
  *
  * @param {string} query - The original user query
  * @param {Object} brand - { name, slug? }
@@ -410,37 +406,27 @@ function isBrandMentionedInQuery(query, brand) {
     return true;
   }
 
-  const queryLower = query.toLowerCase();
+  return isBrandMentioned(query, brand);
+}
 
-  const tokens = queryLower
-    .replace(/[^\w\s]/g, " ")
-    .split(/\s+/)
-    .filter(Boolean);
+/**
+ * Checks whether any alias appears in the query as a WHOLE WORD.
+ *
+ * The previous raw-substring test let short aliases hide inside unrelated
+ * words: the gender alias "her" matched inside "otHER", silently injecting a
+ * gender term into queries like "other products". Word-boundary matching
+ * matches the same style the entity extractor already uses (contains()).
+ *
+ * @param {string} query
+ * @param {string[]} aliases
+ * @returns {boolean}
+ */
+function containsAlias(query, aliases) {
+  return aliases.some((alias) => {
+    const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-  const fuse = new Fuse(
-    [{ name: brand.name.toLowerCase(), slug: (brand.slug || "").toLowerCase() }],
-    {
-      keys: ["name", "slug"],
-      threshold: BRAND_MATCH_THRESHOLD,
-      ignoreLocation: true,
-      includeScore: true,
-      minMatchCharLength: 2,
-    },
-  );
-
-  for (let size = 1; size <= MAX_BRAND_WORDS; size++) {
-    for (let start = 0; start + size <= tokens.length; start++) {
-      const phrase = tokens.slice(start, start + size).join(" ");
-
-      const result = fuse.search(phrase);
-
-      if (result.length && result[0].score <= BRAND_MATCH_THRESHOLD) {
-        return true;
-      }
-    }
-  }
-
-  return false;
+    return new RegExp(`\\b${escaped}\\b`, "i").test(query);
+  });
 }
 
 /**
@@ -462,9 +448,7 @@ function isProductTypeMentioned(query, productType) {
     return false;
   }
 
-  return aliases.some((alias) =>
-    query.toLowerCase().includes(alias.toLowerCase()),
-  );
+  return containsAlias(query, aliases);
 }
 
 /**
@@ -486,9 +470,7 @@ function isNoteMentioned(query, note) {
     return false;
   }
 
-  return aliases.some((alias) =>
-    query.toLowerCase().includes(alias.toLowerCase()),
-  );
+  return containsAlias(query, aliases);
 }
 
 /**
@@ -510,9 +492,7 @@ function isOccasionMentioned(query, occasion) {
     return false;
   }
 
-  return aliases.some((alias) =>
-    query.toLowerCase().includes(alias.toLowerCase()),
-  );
+  return containsAlias(query, aliases);
 }
 
 /**
@@ -534,9 +514,7 @@ function isGenderMentioned(query, gender) {
     return false;
   }
 
-  return aliases.some((alias) =>
-    query.toLowerCase().includes(alias.toLowerCase()),
-  );
+  return containsAlias(query, aliases);
 }
 
 /**
@@ -558,9 +536,7 @@ function isCategoryGroupMentioned(query, slug) {
     return false;
   }
 
-  return aliases.some((alias) =>
-    query.toLowerCase().includes(alias.toLowerCase()),
-  );
+  return containsAlias(query, aliases);
 }
 
 /**
@@ -717,7 +693,9 @@ function buildKeywordSearchTerm(intent) {
     }
   }
 
-  return parts.join(" ").trim();
+  // Distinct entity terms can collide ("for her" yields both a gender term
+  // and a category-group term "women"); dedupe while preserving order.
+  return [...new Set(parts)].join(" ").trim();
 }
 
 /**

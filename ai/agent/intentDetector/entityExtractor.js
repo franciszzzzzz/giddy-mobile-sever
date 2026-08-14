@@ -190,6 +190,19 @@ export default async function extractEntities(message) {
 
   //
   // -------------------------
+  // Featured / Best Sellers
+  // -------------------------
+  //
+  // "What's your best seller?" previously degenerated into a keyword search
+  // for "seller" (or worse, a fuzzy brand match on "Stellar"). Surfacing it
+  // as `featured` fires the existing featured-products retrieval, and the
+  // ranker already boosts high sellers (total_sales).
+  //
+
+  entities.featured = /\bbest[\s-]*sell(?:ers?|ing)\b/i.test(text);
+
+  //
+  // -------------------------
   // Price Range
   // -------------------------
   //

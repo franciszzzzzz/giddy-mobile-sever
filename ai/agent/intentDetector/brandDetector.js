@@ -218,9 +218,28 @@ const FILLER_NON_BRAND_WORDS = new Set([
   "recommed",
   "recommended",
   "recomended",
+  "recommendation",
+  "recommendations",
   "suggest",
   "sugest",
   "suggestion",
+  "seller",
+  "sellers",
+  "selling",
+  "option",
+  "options",
+  "product",
+  "products",
+  "item",
+  "items",
+  "stuff",
+  "things",
+  "thing",
+  "brand",
+  "brands",
+  "yeah",
+  "yep",
+  "okay",
 ]);
 
 /**
@@ -348,7 +367,19 @@ export function detectBrands(message, brands) {
         // matched phrase to cover at least BRAND_LENGTH_RATIO of the brand
         // name's characters. Real typos ("sahib" -> "Sahiib") and short
         // brands ("Ard") still pass.
-        if (brandChars && phraseNoSpace.length / brandChars < BRAND_LENGTH_RATIO) {
+        //
+        // Exception: when the phrase is a prefix of the brand name
+        // ("genie" -> "Genie Collection"), the user typed an intentional
+        // abbreviation of the full brand, not drift — accept it.
+        const isPrefix =
+          (match.name || "").toLowerCase().replace(/[^\w\s]/g, "").trim()
+            .startsWith(phrase);
+
+        if (
+          brandChars &&
+          !isPrefix &&
+          phraseNoSpace.length / brandChars < BRAND_LENGTH_RATIO
+        ) {
           continue;
         }
 
@@ -387,3 +418,85 @@ export function detectBrands(message, brands) {
 }
 
 export default detectBrands;
+
+/**
+ * Checks whether a query mentions a specific brand.
+ *
+ * Used by the query-expansion layer (expandIntent.js) so a brand detected
+ * upstream with a typo ("Sahib" -> "Sahiib") is not stripped by a strict
+ * literal check — while an unrelated memory-inherited brand still fails and
+ * is dropped. Shares the same window guards as detectBrands so the mention
+ * check can never accept a phrase detection would have rejected.
+ *
+ * @param {string} query - Raw user query
+ * @param {Object} brand - { name, slug? }
+ * @returns {boolean}
+ */
+export function isBrandMentioned(query, brand) {
+  if (!query || !brand?.name) {
+    return false;
+  }
+
+  // Literal containment (multi-word fallback handled by the caller).
+  if (query.toLowerCase().includes(brand.name.toLowerCase())) {
+    return true;
+  }
+
+  const brandName = brand.name.toLowerCase();
+
+  const tokens = query
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const fuse = new Fuse(
+    [{ name: brandName, slug: (brand.slug || "").toLowerCase() }],
+    {
+      keys: ["name", "slug"],
+      threshold: BRAND_MATCH_THRESHOLD,
+      ignoreLocation: true,
+      includeScore: true,
+      minMatchCharLength: 2,
+    },
+  );
+
+  const brandChars = brandName.replace(/\s+/g, "").length;
+
+  for (let size = 1; size <= MAX_BRAND_WORDS; size++) {
+    for (let start = 0; start + size <= tokens.length; start++) {
+      const windowTokens = tokens.slice(start, start + size);
+      const phrase = windowTokens.join(" ");
+      const phraseNoSpace = phrase.replace(/\s+/g, "");
+
+      if (phraseNoSpace.length < MIN_BRAND_PHRASE_LENGTH) {
+        continue;
+      }
+
+      if (isNonBrandWindow(phrase, windowTokens)) {
+        continue;
+      }
+
+      const result = fuse.search(phrase);
+
+      if (result.length && result[0].score <= BRAND_MATCH_THRESHOLD) {
+        const isPrefix = brandName
+          .replace(/[^\w\s]/g, "")
+          .trim()
+          .startsWith(phrase);
+
+        if (
+          brandChars &&
+          !isPrefix &&
+          phraseNoSpace.length / brandChars < BRAND_LENGTH_RATIO
+        ) {
+          continue;
+        }
+
+        return true;
+      }
+    }
+  }
+
+  return false;
+}

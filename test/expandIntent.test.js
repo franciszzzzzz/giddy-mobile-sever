@@ -571,3 +571,81 @@ describe("expandIntent — immutability", () => {
     assert.deepEqual(result.brand, { name: "Olay" });
   });
 });
+
+describe("expandIntent — 2026-08-14 production regressions", () => {
+  // These mirror the exact queries that produced garbage keyword searches
+  // ("women recommendations her", "options", "Stellar your seller") and
+  // returned products: 0 in production.
+  test("strips junk filler: options / seller / yeah / products", () => {
+    assert.equal(
+      expandIntent({
+        type: INTENTS.PRODUCT_SEARCH,
+        query: "Show more options",
+      }).expandedQuery,
+      "",
+    );
+
+    const bestSeller = expandIntent({
+      type: INTENTS.PRODUCT_RECOMMENDATION,
+      query: "What's your best seller?",
+      featured: true,
+    });
+
+    // "what"/"your"/"best"/"seller" are all filler; only the featured
+    // retrieval should fire.
+    assert.equal(bestSeller.expandedQuery, "");
+    assert.ok(
+      bestSeller.searches.some((s) => s.type === "featured"),
+      "best-seller query must fire the featured retrieval",
+    );
+    assert.ok(
+      !bestSeller.searches.some((s) => s.type === "keyword"),
+      "no junk keyword search for best-seller query",
+    );
+  });
+
+  test('"other products" does not inherit gender "women" via the "her" substring', () => {
+    // Regression: the raw substring check saw "her" inside "otHER" and
+    // injected the gender term, producing the keyword "women products".
+    const result = expandIntent({
+      type: INTENTS.PRODUCT_SEARCH,
+      query: "other products",
+      gender: "women",
+    });
+
+    assert.ok(!result.expandedQuery.toLowerCase().includes("women"));
+    assert.ok(!result.expandedQuery.toLowerCase().includes("her"));
+  });
+
+  test('"Recommend a gift for her" fires the women category retrieval', () => {
+    // "her" is now a women category-group alias, so gift-for-her queries
+    // retrieve the Women category instead of a dead-end keyword search.
+    const result = expandIntent({
+      type: INTENTS.PRODUCT_RECOMMENDATION,
+      query: "Recommend a gift for her",
+      categoryGroup: { slug: "women", name: "women" },
+      gender: "women",
+    });
+
+    const categorySearch = result.searches.find((s) => s.type === "category");
+    assert.ok(categorySearch, "category search must fire");
+    assert.equal(categorySearch.value, "women");
+  });
+
+  test('"Yeah peefumes body sprays" keeps the productType search but no brand', () => {
+    const result = expandIntent({
+      type: INTENTS.PRODUCT_INFORMATION,
+      query: "Yeah peefumes body sprays",
+      productType: "bodySpray",
+    });
+
+    assert.ok(
+      result.searches.some(
+        (s) => s.type === "productType" && s.value === "bodySpray",
+      ),
+    );
+    assert.ok(!result.searches.some((s) => s.type === "brand"));
+    // Filler ("yeah") is stripped from the keyword.
+    assert.ok(!result.expandedQuery.toLowerCase().includes("yeah"));
+  });
+});

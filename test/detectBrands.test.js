@@ -1,7 +1,10 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { detectBrands } from "../ai/agent/intentDetector/brandDetector.js";
+import {
+  detectBrands,
+  isBrandMentioned,
+} from "../ai/agent/intentDetector/brandDetector.js";
 
 /**
  * Tests for brand detection.
@@ -177,5 +180,107 @@ describe("detectBrands — edge cases", () => {
   test("returns no brand for a message with no brand-like tokens", () => {
     const { brand } = detectBrands("hello what can you do", BRANDS);
     assert.equal(brand, null);
+  });
+});
+
+describe("detectBrands — 2026-08-14 production regressions", () => {
+  // Brand list mirroring the live store AFTER the generic-tag filter in
+  // agent/dynamic/brands.js (product-type tags like "Perfume"/"Body Mist"
+  // are excluded from the dictionary entirely, so they cannot match here).
+  const LIVE_BRANDS = [
+    ...BRANDS,
+    { id: 21, name: "Stellar", slug: "stellar" },
+    { id: 22, name: "Dessert", slug: "dessert" },
+    { id: 23, name: "Aftershave", slug: "aftershave" },
+    { id: 24, name: "Genie Collection", slug: "genie-collection" },
+    { id: 25, name: "Genie’s Ford", slug: "genies-ford" },
+  ];
+
+  // Each of these fired a bogus productsByBrand retrieval in production.
+  test('"best seller" does not detect "Stellar"', () => {
+    const { brand } = detectBrands("What's your best seller?", LIVE_BRANDS);
+    assert.equal(brand, null);
+  });
+
+  test('"Show more options" detects no brand', () => {
+    const { brand } = detectBrands("Show more options", LIVE_BRANDS);
+    assert.equal(brand, null);
+  });
+
+  test('"Other products" does not detect "Aftershave"', () => {
+    const { brand } = detectBrands("Other products", LIVE_BRANDS);
+    assert.equal(brand, null);
+  });
+
+  test('"Recommend a gift for her" detects no brand', () => {
+    const { brand } = detectBrands("Recommend a gift for her", LIVE_BRANDS);
+    assert.equal(brand, null);
+  });
+
+  test('"Yeah peefumes body sprays" detects no brand against a filtered list', () => {
+    // "peefumes" (typo) would fuzzy-match the generic tag "Perfume" at 0.250;
+    // the dictionary filter removes that tag, so nothing can match.
+    const { brand } = detectBrands("Yeah peefumes body sprays", LIVE_BRANDS);
+    assert.equal(brand, null);
+  });
+
+  test('"for" inside a phrase does not drift to "Genie’s Ford"', () => {
+    const { brand } = detectBrands("What can you do for me", LIVE_BRANDS);
+    assert.equal(brand, null);
+  });
+});
+
+describe("detectBrands — prefix abbreviations of long brand names", () => {
+  // The length-ratio guard rejects short-word-to-long-brand drift ("for" ->
+  // "Storm"), but a phrase that is a PREFIX of the brand name is an
+  // intentional abbreviation and must pass ("Genie" -> "Genie Collection").
+  const LIVE_BRANDS = [
+    { id: 24, name: "Genie Collection", slug: "genie-collection" },
+    { id: 30, name: "Parfums by Genie", slug: "parfums-by-genie" },
+  ];
+
+  test('"Genie" resolves to "Genie Collection"', () => {
+    const { brand } = detectBrands("Genie", LIVE_BRANDS);
+    assert.equal(brand?.name, "Genie Collection");
+  });
+
+  test('"show me genie perfumes" resolves to "Genie Collection"', () => {
+    const { brand } = detectBrands("show me genie perfumes", LIVE_BRANDS);
+    assert.equal(brand?.name, "Genie Collection");
+  });
+});
+
+describe("isBrandMentioned — shared mention check used by expandIntent", () => {
+  test("accepts a typo'd mention (Sahib vs Sahiib)", () => {
+    assert.equal(
+      isBrandMentioned("Sahib", { name: "Sahiib", slug: "sahiib" }),
+      true,
+    );
+  });
+
+  test("accepts an exact mention", () => {
+    assert.equal(
+      isBrandMentioned("show me storm perfumes", { name: "Storm", slug: "storm" }),
+      true,
+    );
+  });
+
+  test("rejects an unrelated query (seller vs Stellar)", () => {
+    assert.equal(
+      isBrandMentioned("What's your best seller?", { name: "Stellar", slug: "stellar" }),
+      false,
+    );
+  });
+
+  test("rejects filler-only queries", () => {
+    assert.equal(
+      isBrandMentioned("show more options", { name: "Stellar", slug: "stellar" }),
+      false,
+    );
+  });
+
+  test("returns false for missing brand/query", () => {
+    assert.equal(isBrandMentioned("", { name: "Storm" }), false);
+    assert.equal(isBrandMentioned("storm", null), false);
   });
 });

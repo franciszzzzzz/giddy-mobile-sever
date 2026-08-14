@@ -29,5 +29,9 @@ export default function normalizeIntent(intent, entities, query) {
     minPrice: entities.minPrice || null,
 
     maxPrice: entities.maxPrice || null,
+
+    // "best seller" style queries: fires the featured-products retrieval
+    // (the ranker then boosts high sellers via total_sales).
+    featured: entities.featured || false,
   };
 }

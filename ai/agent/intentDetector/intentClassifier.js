@@ -41,7 +41,13 @@ export default function classifyIntent(message, entities = {}) {
     /\bdoes it\b/i.test(text) ||
     /\bis it\b/i.test(text) ||
     /\bdoes this\b/i.test(text) ||
-    /\bthat one\b/i.test(text)
+    /\bthat one\b/i.test(text) ||
+    // The chat UI's own suggestion chips send these. Without this they fell
+    // through to a keyword search for "options"/"products" that returns
+    // nothing; as follow-ups they reuse the products from the last turn.
+    /\b(show more|more options|other products|anything else|something else|another one)\b/i.test(
+      text,
+    )
   ) {
     return INTENTS.FOLLOW_UP;
   }
