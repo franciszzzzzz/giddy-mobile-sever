@@ -22,6 +22,11 @@ export default function normalizeIntent(intent, entities, query) {
 
     productType: entities.productType,
 
+    // Must be forwarded or the category retrieval can never fire: the
+    // extractor detects it, but without this line the intent drops it and
+    // queries like "gift for him" fall back to a dead-end keyword search.
+    categoryGroup: entities.categoryGroup || null,
+
     recipient: entities.recipient || null,
 
     budget: entities.budget || null,

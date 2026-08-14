@@ -117,6 +117,13 @@ export default function resolveIntentWithMemory(intent, memory) {
     resolved.productType = memory.lastProductType;
   }
 
+  // Saved by updateConversation as memory.lastCategory. Inheriting it lets a
+  // follow-up like "gift sets then" keep the men/women context; expandIntent
+  // still drops it unless the user actually mentions the group again.
+  if (!hasValue(resolved.categoryGroup)) {
+    resolved.categoryGroup = memory.lastCategory;
+  }
+
   if (!hasValue(resolved.note)) {
     resolved.note = memory.lastNote;
   }
