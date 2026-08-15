@@ -145,6 +145,15 @@ class RedisClient {
     }
   }
 
+  async expire(key, seconds) {
+    try {
+      return await this.client.expire(key, seconds);
+    } catch (error) {
+      console.error("❌ Redis EXPIRE error:", error.message);
+      return false;
+    }
+  }
+
   async isReady() {
     try {
       await this.client.ping();
