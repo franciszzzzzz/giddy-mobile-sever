@@ -17,7 +17,7 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
 
 // Middleware
-import limiter from "./middleware/rateLimiter.js";
+import limiter, { authLimiter } from "./middleware/rateLimiter.js";
 import errorHandleMiddleware from "./middleware/error.js";
 
 const app = express();
@@ -60,8 +60,12 @@ app.options(
 app.use(express.json());
 app.use(cookieParser());
 
-// Rate limiter
+// Rate limiter (auth endpoints get a stricter, dedicated one below)
 app.use(limiter);
+
+// Stricter limit for credential endpoints — brute-force targets.
+// Must be mounted BEFORE the general routes.
+app.use(["/api/v1/login", "/api/v1/register", "/api/v1/google"], authLimiter);
 
 // ===============================
 //       API ROUTES FIRST
