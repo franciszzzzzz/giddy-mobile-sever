@@ -16,8 +16,10 @@ const capturedKeys = [];
 const banned = () => [...store.keys()].filter((k) => k.startsWith("banned:"));
 
 redisClient.exists = async (k) => (store.has(k) ? 1 : 0);
+const ttlOf = new Map(); // key -> TTL last set via setEx
 redisClient.setEx = async (k, s, v) => {
   store.set(k, v);
+  ttlOf.set(k, s);
   return true;
 };
 redisClient.incr = async (k) => {
@@ -138,6 +140,40 @@ await test("Redis store outage -> limiter fails open + per-identity store keys",
     capturedKeys.some((k) => k.includes("5.5.5.5")),
     "keyGenerator must pass XFF identity to the store",
   );
+});
+
+// T6: incremental ban ladder — repeat offenses escalate 1h -> 24h -> 7d
+await test("repeat offenses escalate ban: 1h -> 24h -> 7d", async () => {
+  const offense = async () => {
+    store.delete("banned:7.7.7.7"); // simulate ban expiry
+    store.delete("trap:7.7.7.7"); // trap window also expired
+    for (let i = 0; i < 10; i++) await get("/.env.scan", "7.7.7.7");
+  };
+
+  await offense(); // 1st
+  assert.equal(ttlOf.get("banned:7.7.7.7"), 60 * 60, "1st offense: 1h");
+  assert.equal(store.get("bancount:7.7.7.7"), "1");
+
+  await offense(); // 2nd
+  assert.equal(ttlOf.get("banned:7.7.7.7"), 24 * 60 * 60, "2nd offense: 24h");
+  assert.equal(store.get("bancount:7.7.7.7"), "2");
+
+  await offense(); // 3rd
+  assert.equal(
+    ttlOf.get("banned:7.7.7.7"),
+    7 * 24 * 60 * 60,
+    "3rd offense: 7d",
+  );
+  assert.equal(store.get("bancount:7.7.7.7"), "3");
+
+  await offense(); // 4th — stays at 7d
+  assert.equal(
+    ttlOf.get("banned:7.7.7.7"),
+    7 * 24 * 60 * 60,
+    "4th offense: still 7d",
+  );
+  const blocked = await get("/api/v1/ping", "7.7.7.7");
+  assert.equal(blocked.status, 403, "identity must be blocked");
 });
 
 server.close();
