@@ -23,7 +23,7 @@ const config = {
 
     {
       provider: PROVIDERS.GROQ,
-      model: MODELS.LLAMA_70B,
+      model: MODELS.GPT_OSS_120B,
       priority: 3,
       enabled: true,
     },

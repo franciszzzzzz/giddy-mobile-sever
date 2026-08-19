@@ -63,7 +63,7 @@ function isValidResponse(data) {
  * Supported models.
  */
 function supports(model) {
-  return model === MODELS.LLAMA_70B;
+  return model === MODELS.GPT_OSS_120B;
 }
 
 /**

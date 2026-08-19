@@ -110,14 +110,15 @@ async function generate({
       temperature,
       max_tokens: maxTokens,
 
-      // DeepSeek reasoning-capable models (e.g. deepseek-v4-flash) can spend
-      // the ENTIRE token budget on `reasoning_content` and return an EMPTY
-      // `content` field. That empty content was previously misread as a
-      // failure (and worse, the reasoning was briefly surfaced to the user).
-      // Disabling internal thinking forces the model to produce the answer
-      // directly in `content`. Harmless on non-reasoning models.
-      chat_template_kwargs: {
-        thinking: false,
+      // deepseek-v4-flash is reasoning-capable and can spend the ENTIRE token
+      // budget on `reasoning_content`, returning an EMPTY `content` field
+      // (finish_reason "length") — which fails validation as INVALID_RESPONSE.
+      // `chat_template_kwargs: { thinking: false }` is silently IGNORED by the
+      // API; the native switch is the `thinking` struct (verified live:
+      // reasoning_tokens drops to 0 and finish_reason is "stop").
+      // Harmless on non-reasoning models.
+      thinking: {
+        type: "disabled",
       },
     });
 
@@ -127,7 +128,9 @@ async function generate({
         provider: PROVIDERS.DEEPSEEK,
         error: {
           code: AI_ERRORS.INVALID_RESPONSE,
-          message: "DeepSeek returned an invalid response.",
+          message: `DeepSeek returned an invalid response (finish_reason: ${
+            response.data?.choices?.[0]?.finish_reason || "unknown"
+          }).`,
         },
       };
     }
