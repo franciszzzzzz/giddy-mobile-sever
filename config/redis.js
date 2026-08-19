@@ -109,6 +109,15 @@ class RedisClient {
     }
   }
 
+  async incr(key) {
+    try {
+      return await this.client.incr(key);
+    } catch (error) {
+      console.error("❌ Redis INCR error:", error.message);
+      return 0;
+    }
+  }
+
   async keys(pattern) {
     try {
       return await this.client.keys(pattern);

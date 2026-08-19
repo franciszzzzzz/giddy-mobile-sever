@@ -18,6 +18,8 @@ import aiRoutes from "./routes/aiRoutes.js";
 
 // Middleware
 import limiter, { authLimiter } from "./middleware/rateLimiter.js";
+import { checkIpBan, scannerTrap } from "./middleware/ipBan.js";
+import { loginLockout } from "./middleware/loginLockout.js";
 import errorHandleMiddleware from "./middleware/error.js";
 
 const app = express();
@@ -25,8 +27,8 @@ const app = express();
 // Allowed origins
 const allowedOrigins =
   process.env.NODE_ENV === "production"
-    ? ["https://giddyandclaire.com/"]
-    : [" http://localhost:8081"];
+    ? ["https://giddyandclaire.com"]
+    : ["http://localhost:8081"];
 
 // CORS setup
 app.use(
@@ -60,8 +62,18 @@ app.options(
 app.use(express.json());
 app.use(cookieParser());
 
+// Banned identities (scanner trap) are rejected before anything else runs.
+app.use(checkIpBan);
+
+// Junk-path scanner trap — counts non-/api requests per identity and bans
+// repeat offenders. Must run before the limiter so bans apply everywhere.
+app.use(scannerTrap);
+
 // Rate limiter (auth endpoints get a stricter, dedicated one below)
 app.use(limiter);
+
+// Per-email login lockout — spoof-proof brute-force guard for credentials.
+app.use("/api/v1/login", loginLockout);
 
 // Stricter limit for credential endpoints — brute-force targets.
 // Must be mounted BEFORE the general routes.
@@ -83,21 +95,5 @@ app.use("/api/v1", aiRoutes);
 // ERROR HANDLER MUST BE LAST
 // ===============================
 app.use(errorHandleMiddleware);
-
-// Rate limit debug endpoint
-app.get("/api/rate-limit-test", (req, res) => {
-  console.log(`📊 Rate limit test hit - IP: ${req.ip}`);
-  res.json({
-    success: true,
-    message: "Rate limit test endpoint",
-    timestamp: new Date().toISOString(),
-    yourIP: req.ip,
-    rateLimitHeaders: {
-      limit: res.get("RateLimit-Limit"),
-      remaining: res.get("RateLimit-Remaining"),
-      reset: res.get("RateLimit-Reset"),
-    },
-  });
-});
 
 export default app;
