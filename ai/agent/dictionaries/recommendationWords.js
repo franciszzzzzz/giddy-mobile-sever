@@ -16,7 +16,9 @@ export default [
 
   // --- Purchase & Shopping Intent ---
   "purchase",
-  "order",
+  // NOTE: bare "order" removed — "my order arrived?" is order SUPPORT, not
+  // shopping. The shopping sense ("I want to order a perfume") always
+  // co-occurs with another shopping word ("want", "perfume", ...).
   "shop",
   "browse",
   "find a scent",

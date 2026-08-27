@@ -125,9 +125,15 @@ const BLOCKED_KEYWORDS = [
 /**
  * Checks whether a message contains
  * one of the supplied keywords.
+ *
+ * Matches on whole words only (e.g. "exam" must NOT match inside
+ * "example", "sex" must not match inside "sextant").
  */
 function containsKeyword(message, keywords) {
-  return keywords.some((keyword) => message.includes(keyword));
+  return keywords.some((keyword) => {
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i").test(message);
+  });
 }
 
 /**

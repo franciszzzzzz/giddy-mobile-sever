@@ -1,7 +1,12 @@
 export default [
   // --- Original Keywords ---
   "shipping",
+  "ship",
+  "ships",
+  "deliver",
+  "delivered",
   "delivery",
+  "dispatch",
   "returns",
   "refund",
   "exchange",
@@ -26,6 +31,8 @@ export default [
   "customs duty",
   "package",
   "parcel",
+  "arrive",
+  "arrives",
   "arrived",
   "never arrived",
   "lost package",

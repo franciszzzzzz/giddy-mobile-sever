@@ -74,10 +74,29 @@ export default function buildPrompt({
       });
       break;
 
-    case "EDUCATION":
+    case INTENTS.FRAGRANCE_EDUCATION:
       messages.push({
         role: "system",
         content: buildEducationPrompt(),
+      });
+      break;
+
+    case INTENTS.UNKNOWN:
+      // Nothing in the message looked store-related (no matched intent,
+      // no shopping entities). Keep the reply short and steer back to
+      // fragrances instead of drifting into general chat.
+      messages.push({
+        role: "system",
+        content: `
+The customer's message did not match any known store pattern (no matched intent, no shopping entities).
+
+Instructions:
+
+- If the message IS actually about fragrances, products, orders, shipping, returns or the store, answer it normally.
+- If it is small talk or a greeting, reply warmly in ONE short sentence and steer the conversation back to fragrances.
+- If it is an unrelated question (general knowledge, coding, homework, other topics), politely decline in ONE short sentence and offer a fragrance-related next step.
+- Do NOT answer unrelated questions, not even partially.
+`,
       });
       break;
 

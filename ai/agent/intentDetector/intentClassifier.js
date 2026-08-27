@@ -133,9 +133,34 @@ export default function classifyIntent(message, entities = {}) {
 
   //
   // -----------------------------------------
-  // Product Search
+  // Product Search (only with a store signal)
   // -----------------------------------------
   //
 
-  return INTENTS.PRODUCT_SEARCH;
+  // Reaching this point means no intent branch matched. If the message
+  // still carries a shopping signal (brand, product type, category,
+  // gender, occasion, note, budget), a catalogue search is a reasonable
+  // guess. Otherwise treat it as UNKNOWN — general-knowledge questions
+  // ("what's a noun") must NOT become product searches, or the LLM will
+  // happily answer them off-topic.
+  const hasShoppingSignal = Boolean(
+    entities.brand ||
+      entities.productType ||
+      entities.categoryGroup ||
+      entities.gender ||
+      entities.occasion ||
+      entities.note ||
+      entities.recipient ||
+      entities.budget ||
+      entities.featured ||
+      entities.comparisonProducts ||
+      entities.minPrice !== null ||
+      entities.maxPrice !== null,
+  );
+
+  if (hasShoppingSignal) {
+    return INTENTS.PRODUCT_SEARCH;
+  }
+
+  return INTENTS.UNKNOWN;
 }

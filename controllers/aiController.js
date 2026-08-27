@@ -5,6 +5,8 @@ import logger from "../utils/logger.js";
 import providers from "../ai/llm/providers/index.js";
 import redisClient from "../config/redis.js";
 import runPipeline from "../ai/pipeline/index.js";
+import { validateChatInput } from "../ai/safety/inputFilter.js";
+import { INTENTS } from "../ai/constants/intents.js";
 
 /**
  * POST /api/v1/ai/chat
@@ -21,6 +23,46 @@ export const chatWithClaire = handleAsyncError(async (req, res, next) => {
     message: "Claire chat request received.",
     userId: req.user?.id || null,
   });
+
+  // Safety gate — rejected messages get a canned deflection instead of an
+  // LLM answer, so off-store topics and injection attempts cost no tokens.
+  const inputCheck = validateChatInput(message);
+  if (!inputCheck.ok) {
+    logger.warn({
+      message: "Claire input rejected by safety filter.",
+      code: inputCheck.code,
+      userId: req.user?.id || null,
+    });
+
+    return res.status(200).json({
+      success: true,
+
+      intent: {
+        type: INTENTS.UNKNOWN,
+        confidence: 1,
+      },
+
+      message: inputCheck.message,
+
+      provider: null,
+
+      model: null,
+
+      usage: null,
+
+      context: {
+        source: "safety",
+        products: [],
+        product: null,
+        brands: [],
+        categories: [],
+      },
+
+      suggestions: ["Recommend a perfume", "Browse brands", "Browse categories"],
+
+      timestamp: new Date().toISOString(),
+    });
+  }
 
   const state = await runPipeline({
     sessionId: req.user?.id || "anonymous",
