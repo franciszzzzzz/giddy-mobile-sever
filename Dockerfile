@@ -14,7 +14,11 @@ USER node
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s \
+# 12h interval: this only feeds `docker ps` health status (nothing in
+# compose restarts on unhealthy), while a short interval spams the app logs
+# with /health requests. Runs server-side, so it continues regardless of
+# whether any client app is open.
+HEALTHCHECK --interval=12h \
             --timeout=5s \
             --start-period=30s \
             --retries=3 \

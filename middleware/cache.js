@@ -60,6 +60,12 @@ export const cache = (ttl = CACHE_TTL.PRODUCTS) => {
 export const cacheDebugger = async (req, res, next) => {
   const key = req.originalUrl;
 
+  // Probe endpoints (Docker HEALTHCHECK, uptime monitors) hit /health on a
+  // schedule — logging them just spams the logs and wastes Redis lookups.
+  if (key.includes("/health")) {
+    return next();
+  }
+
   // Only log for API routes
   if (key.includes("/api/") || key.includes("/products")) {
     console.log(`\n🔍 [CACHE DEBUG] ${req.method} ${key}`);
