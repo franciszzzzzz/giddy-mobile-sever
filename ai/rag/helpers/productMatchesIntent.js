@@ -61,32 +61,11 @@ export default function productMatchesIntent(product, intent = {}) {
     }
   }
 
-  //
-  // -----------------------------
-  // Gender
-  // -----------------------------
-  //
-  if (intent.gender && !contains(searchable, intent.gender)) {
-    return false;
-  }
-
-  //
-  // -----------------------------
-  // Occasion
-  // -----------------------------
-  //
-  if (intent.occasion && !contains(searchable, intent.occasion)) {
-    return false;
-  }
-
-  //
-  // -----------------------------
-  // Fragrance Note
-  // -----------------------------
-  //
-  if (intent.note && !contains(searchable, intent.note)) {
-    return false;
-  }
+  // Gender, occasion and fragrance note are recommendation preferences, not
+  // reliable hard filters. WooCommerce product records frequently omit those
+  // words even when a product is suitable, so enforcing them here used to
+  // discard every category/type candidate and return no product cards. The
+  // ranker still uses matching metadata to boost the most relevant products.
 
   //
   // -----------------------------

@@ -275,6 +275,22 @@ describe("expandIntent — memory-inherited entity isolation", () => {
 
     assert.equal(result.expandedQuery, "perfume perfumes");
   });
+
+  test("memory-inherited preference fields cannot filter a new request", () => {
+    const result = expandIntent({
+      type: INTENTS.PRODUCT_RECOMMENDATION,
+      query: "show me perfumes",
+      productType: "perfume",
+      gender: "women",
+      occasion: "party",
+      note: "vanilla",
+    });
+
+    assert.equal(result.productType, "perfume");
+    assert.equal(result.gender, undefined);
+    assert.equal(result.occasion, undefined);
+    assert.equal(result.note, undefined);
+  });
 });
 
 describe("expandIntent — searches array", () => {

@@ -710,7 +710,7 @@ function buildKeywordSearchTerm(intent) {
  * buildKeywordSearchTerm().
  *
  * @param {Object} intent
- * @returns {Object} Cleaned entities { brand, productType, categoryGroup }
+ * @returns {Object} Cleaned entities that may affect retrieval or filtering
  */
 function getCurrentQueryEntities(intent) {
   const query = intent.query || "";
@@ -724,6 +724,9 @@ function getCurrentQueryEntities(intent) {
     brand: undefined,
     productType: undefined,
     categoryGroup: undefined,
+    gender: undefined,
+    occasion: undefined,
+    note: undefined,
   };
 
   //
@@ -768,6 +771,34 @@ function getCurrentQueryEntities(intent) {
     )
   ) {
     result.categoryGroup = intent.categoryGroup;
+  }
+
+  // These fields are ranking/filtering signals downstream. They need the
+  // same current-message guard as the dedicated retrieval entities: a prior
+  // turn's "vanilla", "women", or "party" must not reject every product for
+  // a new, unrelated request.
+  if (
+    intent.gender &&
+    isGenderMentioned(query, intent.gender) &&
+    !isNegated(negatedTokens, getGenderSearchTerm(intent.gender))
+  ) {
+    result.gender = intent.gender;
+  }
+
+  if (
+    intent.occasion &&
+    isOccasionMentioned(query, intent.occasion) &&
+    !isNegated(negatedTokens, getOccasionSearchTerm(intent.occasion))
+  ) {
+    result.occasion = intent.occasion;
+  }
+
+  if (
+    intent.note &&
+    isNoteMentioned(query, intent.note) &&
+    !isNegated(negatedTokens, getNoteSearchTerm(intent.note))
+  ) {
+    result.note = intent.note;
   }
 
   return result;
@@ -955,7 +986,7 @@ export default function expandIntent(intent = {}) {
   // otherwise fire dedicated retrieval searches (e.g. productsByBrand)
   // that have nothing to do with what the user just asked for.
   //
-  const { brand, productType, categoryGroup } =
+  const { brand, productType, categoryGroup, gender, occasion, note } =
     getCurrentQueryEntities(intent);
 
   const cleanedIntent = {
@@ -963,6 +994,9 @@ export default function expandIntent(intent = {}) {
     brand,
     productType,
     categoryGroup,
+    gender,
+    occasion,
+    note,
   };
 
   const expandedQuery = buildKeywordSearchTerm(cleanedIntent);

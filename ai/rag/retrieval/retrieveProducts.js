@@ -93,9 +93,25 @@ export default async function retrieveProducts(intent = {}) {
   // --------------------------------------------------
   //
 
-  products = products.filter((product) =>
+  const matchingProducts = products.filter((product) =>
     productMatchesIntent(product, expandedIntent),
   );
+
+  // WooCommerce records do not consistently carry every conversational
+  // preference (for example, "birthday", "party", or a fragrance note) in
+  // their name, tags, or descriptions. Retrieval has already supplied the
+  // closest candidates through category/brand/type searches, so never turn a
+  // useful result set into an empty carousel solely because metadata is thin.
+  // Keep strict matches when present; otherwise return the ranked candidates.
+  if (matchingProducts.length) {
+    products = matchingProducts;
+  } else if (products.length) {
+    logger.warn({
+      message: "Product metadata filter matched no products; using ranked retrieval candidates.",
+      intent: expandedIntent.type,
+      productCount: products.length,
+    });
+  }
 
   return products;
 }
