@@ -9,6 +9,15 @@ import handleAsyncError from "../middleware/handleAsyncError.js";
 
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
 
+const syncPaidOrder = async (payment, reference) => {
+  await wc.put(`/orders/${payment.wcOrderId}`, {
+    status: "completed",
+    set_paid: true,
+    transaction_id: reference,
+  });
+  await deleteCart(payment.customerId);
+};
+
 // ✅ Initialize transaction
 export const initializePayment = handleAsyncError(async (req, res, next) => {
   const { orderId, idempotencyKey } = req.body;
@@ -44,7 +53,7 @@ export const initializePayment = handleAsyncError(async (req, res, next) => {
 
   const { data: order } = await wc.get(`/orders/${orderId}`);
 
-  if (order.date_paid || order.status === "processing") {
+  if (order.date_paid || ["processing", "completed"].includes(order.status)) {
     payment.status = "paid";
     await payment.save();
 
@@ -101,9 +110,12 @@ export const verifyPayment = handleAsyncError(async (req, res, next) => {
   }
 
   if (payment.status === "paid") {
+    // The payment record may have been saved before WooCommerce was updated.
+    // Keep verification idempotent while allowing that update to be retried.
+    await syncPaidOrder(payment, reference);
     return res.status(200).json({
       success: true,
-      message: "Payment already verified.",
+      message: "Payment already verified and order updated.",
     });
   }
 
@@ -130,13 +142,7 @@ export const verifyPayment = handleAsyncError(async (req, res, next) => {
 
   await payment.save();
 
-  await wc.put(`/orders/${payment.wcOrderId}`, {
-    status: "processing",
-    set_paid: true,
-    transaction_id: reference,
-  });
-
-  await deleteCart(payment.customerId);
+  await syncPaidOrder(payment, reference);
 
   // Send payment notification
   try {
@@ -188,6 +194,7 @@ export const paymentWebhook = async (req, res) => {
     }
 
     if (payment.status === "paid") {
+      await syncPaidOrder(payment, reference);
       return res.status(200).send("Already processed");
     }
 
@@ -196,13 +203,7 @@ export const paymentWebhook = async (req, res) => {
 
     await payment.save();
 
-    await wc.put(`/orders/${payment.wcOrderId}`, {
-      status: "processing",
-      set_paid: true,
-      transaction_id: reference,
-    });
-
-    await deleteCart(payment.customerId);
+    await syncPaidOrder(payment, reference);
 
     // Send payment notification
     try {

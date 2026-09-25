@@ -1,3 +1,4 @@
+import logger from "../../../utils/logger.js";
 import RETRIEVAL_STRATEGIES from "./retrievalStrategies.js";
 
 import mergeProducts from "../helpers/mergeProducts.js";
