@@ -1,4 +1,5 @@
-FROM node:22-alpine
+
+FROM node:22.23.4-alpine3.24
 
 WORKDIR /app
 
@@ -14,10 +15,7 @@ USER node
 
 EXPOSE 8000
 
-# 12h interval: this only feeds `docker ps` health status (nothing in
-# compose restarts on unhealthy), while a short interval spams the app logs
-# with /health requests. Runs server-side, so it continues regardless of
-# whether any client app is open.
+# 12h interval: this only feeds `docker ps` health status.
 HEALTHCHECK --interval=12h \
             --timeout=5s \
             --start-period=30s \
